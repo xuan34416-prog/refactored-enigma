@@ -2,12 +2,12 @@
 const UpdateChecker = {
   // 当前版本号
   currentVersion: '1.1.0',
-  
+
   // 版本信息接口地址（GitHub Pages 地址）
-  versionApiUrl: 'https://xuan34416-prog.github.io/Xiaoye-Pomodoro-Timer/version.json',
-  
+  versionApiUrl: 'https://xuan34416-prog.github.io/refactored-enigma/version.json',
+
   // APK 下载地址（GitHub Releases 地址）
-  apkDownloadUrl: 'https://github.com/xuan34416-prog/Xiaoye-Pomodoro-Timer/releases/download/v1.1.0/app-release.apk',
+  apkDownloadUrl: 'https://github.com/xuan34416-prog/refactored-enigma/releases/download/v1.1.0/app-release.apk',
   
   // 检查更新
   async checkUpdate() {
