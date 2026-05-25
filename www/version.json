@@ -1,0 +1,8 @@
+{
+  "version": "1.1.0",
+  "minVersion": "1.0.0",
+  "releaseDate": "2026-05-25",
+  "changelog": "🎉 更新内容：\n- PWA 支持，可离线使用\n- 界面优化，文字更清晰\n- 主题显示效果改进\n- 在线更新功能\n\n🐛 问题修复：\n- 修复浅色主题下卡片不可见\n- 修复深色主题下菜单按钮不可见\n- 界面纯中文化",
+  "downloadUrl": "https://github.com/xuan34416-prog/refactored-enigma/releases/download/v1.1.0/app-release.apk",
+  "forceUpdate": false
+}

@@ -3,11 +3,11 @@ const UpdateChecker = {
   // 当前版本号
   currentVersion: '1.1.0',
   
-  // 版本信息接口地址（部署到服务器后替换为真实地址）
-  versionApiUrl: 'https://your-domain.com/api/version.json',
+  // 版本信息接口地址（GitHub Pages 地址）
+  versionApiUrl: 'https://xuan34416-prog.github.io/refactored-enigma/version.json',
   
-  // APK 下载地址（部署到服务器后替换为真实地址）
-  apkDownloadUrl: 'https://your-domain.com/releases/app-release.apk',
+  // APK 下载地址（GitHub Releases 地址）
+  apkDownloadUrl: 'https://github.com/xuan34416-prog/refactored-enigma/releases/download/v1.1.0/app-release.apk',
   
   // 检查更新
   async checkUpdate() {
