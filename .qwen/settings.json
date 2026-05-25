@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat *)",
+      "Bash(gradle *)",
+      "Bash(./gradlew *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(cp *)",
+      "Bash(npx *)"
+    ]
+  },
+  "$version": 4
+}

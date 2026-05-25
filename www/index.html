@@ -1124,6 +1124,55 @@ body {
 
 <script src="update-check.js"></script>
 <script>
+// ── Capacitor 通知抽象层 ──────────────────────
+const _isCapacitor = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+let _cachedNotifPerm = 'default'; // 'granted' | 'denied' | 'default' | 'unsupported'
+
+function _notifSupported() {
+  return _isCapacitor || ('Notification' in window);
+}
+
+async function _syncNotifPerm() {
+  if (_isCapacitor) {
+    try {
+      const { LocalNotifications } = window.Capacitor.Plugins;
+      const s = await LocalNotifications.checkPermissions();
+      _cachedNotifPerm = s.display === 'granted' ? 'granted' : s.display === 'denied' ? 'denied' : 'default';
+    } catch(e) { _cachedNotifPerm = 'default'; }
+  } else if ('Notification' in window) {
+    _cachedNotifPerm = Notification.permission;
+  } else {
+    _cachedNotifPerm = 'unsupported';
+  }
+  return _cachedNotifPerm;
+}
+
+async function _requestNotifPerm() {
+  if (_isCapacitor) {
+    try {
+      const { LocalNotifications } = window.Capacitor.Plugins;
+      const r = await LocalNotifications.requestPermissions();
+      _cachedNotifPerm = r.display === 'granted' ? 'granted' : 'denied';
+    } catch(e) { _cachedNotifPerm = 'denied'; }
+  } else if ('Notification' in window) {
+    _cachedNotifPerm = await Notification.requestPermission();
+  } else {
+    _cachedNotifPerm = 'unsupported';
+  }
+  return _cachedNotifPerm;
+}
+
+async function _showNotif(title, body) {
+  if (_isCapacitor && _cachedNotifPerm === 'granted') {
+    try {
+      const { LocalNotifications } = window.Capacitor.Plugins;
+      await LocalNotifications.schedule({ notifications: [{ title, body, id: Math.floor(Math.random() * 100000), smallIcon: 'ic_launcher' }] });
+    } catch(e) { console.warn('Local notification failed:', e); }
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body });
+  }
+}
+
 // ══ 国际化文本 ════════════════════════════════
 const I18N = { zh: {
     appTitle:     '🍅 番茄时钟',
@@ -1631,8 +1680,8 @@ const BELL_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 function updateNotifBtn() {
   const btn = document.getElementById('btnNotif');
-  const supported = 'Notification' in window;
-  const perm = supported ? Notification.permission : 'unsupported';
+  const supported = _notifSupported();
+  const perm = supported ? _cachedNotifPerm : 'unsupported';
   const effectiveOn = notifEnabled && perm === 'granted';
   const blocked     = notifEnabled && (perm === 'denied' || perm === 'unsupported');
   btn.innerHTML = effectiveOn ? BELL_ON : BELL_OFF;
@@ -1660,11 +1709,11 @@ function updateNotifBtn() {
 function updateNotifStatus() {
   const el = document.getElementById('notifStatus');
   if (!el) return;
-  if (!('Notification' in window)) {
+  if (!_notifSupported()) {
     el.textContent = T().notifUnsupported;
     el.className = 'sp-notif-status warn'; return;
   }
-  const perm = Notification.permission;
+  const perm = _cachedNotifPerm;
   if (perm === 'granted') {
     el.textContent = T().notifGranted;
     el.className = 'sp-notif-status granted';
@@ -1680,21 +1729,22 @@ function updateNotifStatus() {
 // 统一的权限申请 + 状态更新入口
 async function requestNotif(wantOn) {
   if (wantOn) {
-    if (!('Notification' in window)) {
+    if (!_notifSupported()) {
       showToast(T().notifUnsupported);
       const chk = document.getElementById('chkNotif');
       if (chk) chk.checked = false;
       updateNotifStatus(); return;
     }
-    if (Notification.permission === 'denied') {
+    await _syncNotifPerm();
+    if (_cachedNotifPerm === 'denied') {
       showToast(T().notifBlocked);
       const chk = document.getElementById('chkNotif');
       if (chk) chk.checked = false;
       notifEnabled = false;
       updateNotifBtn(); updateNotifStatus(); return;
     }
-    if (Notification.permission === 'default') {
-      const result = await Notification.requestPermission();
+    if (_cachedNotifPerm === 'default') {
+      const result = await _requestNotifPerm();
       if (result !== 'granted') {
         showToast(result === 'denied' ? T().notifBlocked : T().notifOff);
         notifEnabled = false;
@@ -1843,7 +1893,7 @@ function dismissAlarm() {
   }, { passive: true });
 })();
 
-function onComplete() {
+async function onComplete() {
   const finishedMode = mode;
   lastFinishedMode = finishedMode; // 供 visibilitychange 补触发用
 
@@ -1876,7 +1926,7 @@ function onComplete() {
       repeatTimer = setInterval(() => playSound(CFG.sound), 4000);
       alarmAutoStopTimer = setTimeout(() => dismissAlarm(), 300000);
     }
-    if (notifEnabled && Notification.permission === 'granted') new Notification(T().notifTitle, { body: msg });
+    if (notifEnabled) await _showNotif(T().notifTitle, msg);
   } catch(e) {
     console.warn('Failed to play sound or show notification:', e);
   }
@@ -2410,7 +2460,7 @@ document.addEventListener('click', () => closeAllMenus());
 applyLang();
 render();
 renderTasks();
-updateNotifBtn();
+_syncNotifPerm().then(() => { updateNotifBtn(); updateNotifStatus(); });
 
 // ══ Service Worker 注册 ══════════════════════════════════
 if ('serviceWorker' in navigator) {

@@ -12,7 +12,13 @@
     "type": "git",
     "url": "git+https://github.com/xuan34416-prog/refactored-enigma.git"
   },
-  "keywords": ["pomodoro", "番茄时钟", "专注", "计时器", "任务管理"],
+  "keywords": [
+    "pomodoro",
+    "番茄时钟",
+    "专注",
+    "计时器",
+    "任务管理"
+  ],
   "author": "小叶",
   "license": "ISC",
   "type": "commonjs",
@@ -23,7 +29,8 @@
   "dependencies": {
     "@capacitor/android": "^8.3.4",
     "@capacitor/cli": "^8.3.4",
-    "@capacitor/core": "^8.3.4"
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/local-notifications": "^8.2.0"
   },
   "devDependencies": {
     "http-server": "^14.1.1"
