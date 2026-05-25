@@ -1,0 +1,2429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="一款功能丰富的番茄时钟应用，支持专注计时、任务管理、多种提示音效，可打包为 Android 应用">
+<meta name="keywords" content="番茄时钟, Pomodoro, 专注, 计时器, 任务管理, 效率">
+<meta name="author" content="小叶">
+<meta name="theme-color" content="#E74C3C">
+<meta property="og:title" content="🍅 番茄时钟">
+<meta property="og:description" content="一款功能丰富的番茄时钟应用">
+<meta property="og:type" content="website">
+<link rel="manifest" href="manifest.json">
+<title>🍅 番茄时钟</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:        #1A1A2E;
+  --surface:   #16213E;
+  --surface2:  #0F3460;
+  --text:      #FFFFFF;
+  --text-dim:  rgba(255,255,255,0.45);
+  --text-hint: rgba(255,255,255,0.25);
+  --border:    rgba(255,255,255,0.08);
+  --mode:      #E74C3C;
+}
+[data-theme="light"] {
+  --bg:        #F5F0EB;
+  --surface:   #FFFFFF;
+  --surface2:  #EDE8E3;
+  --text:      #2C2C2C;
+  --text-dim:  rgba(0,0,0,0.45);
+  --text-hint: rgba(0,0,0,0.25);
+  --border:    rgba(0,0,0,0.08);
+}
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px 16px 48px;
+  transition: background .3s, color .3s;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── 顶栏 ── */
+.topbar {
+  width: 100%; max-width: 480px;
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; margin-bottom: 22px;
+}
+.topbar-left  { display: flex; justify-content: flex-start; }
+.topbar-right { display: flex; justify-content: flex-end; gap: 6px; }
+.app-title { font-size: 17px; font-weight: 700; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--border); border: none;
+  color: var(--text-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s, color .2s; position: relative;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.13); color: var(--text); }
+[data-theme="light"] .icon-btn:hover { background: rgba(0,0,0,0.09); }
+.icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+
+/* ── Tab ── */
+.tabs {
+  display: flex; background: var(--border);
+  border-radius: 30px; padding: 4px;
+  margin-bottom: 28px; width: 100%; max-width: 340px;
+}
+.tab {
+  flex: 1; text-align: center; padding: 9px 0;
+  border-radius: 26px; cursor: pointer; font-size: 13px;
+  color: var(--text-dim); transition: all .25s;
+}
+.tab.active { color: #fff; font-weight: 700; background: var(--mode); }
+.tabs.tp-running .tab:not(.active) { opacity: 0.35; cursor: not-allowed; }
+
+/* ── 圆形计时器 ── */
+.timer-wrap { position: relative; width: 240px; height: 240px; margin-bottom: 20px; }
+.timer-center { cursor: pointer; }
+.timer-wrap.tp-running .timer-center { cursor: default; }
+.timer-wrap svg {
+  position: absolute; top: 0; left: 0; transform: rotate(-90deg);
+  filter: drop-shadow(0 0 10px var(--mode)); transition: filter .4s;
+}
+.timer-bg   { fill: none; stroke: var(--border); stroke-width: 10; }
+.timer-ring { fill: none; stroke: var(--mode); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset .95s linear, stroke .4s; }
+.timer-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.time-display { font-size: 60px; font-weight: 300; letter-spacing: 3px; font-variant-numeric: tabular-nums; line-height: 1; width: auto; }
+
+/* ── 控制按钮 ── */
+.controls { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
+.btn-ctrl {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--border); border: none; color: var(--text-dim); font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .2s, transform .1s;
+}
+.btn-ctrl:hover  { background: rgba(255,255,255,0.13); }
+.btn-ctrl:active { transform: scale(.93); }
+[data-theme="light"] .btn-ctrl:hover { background: rgba(0,0,0,0.1); }
+.btn-main {
+  width: 76px; height: 76px; border-radius: 50%; background: var(--mode); border: none;
+  color: #fff; font-size: 30px; cursor: pointer; box-shadow: 0 0 24px var(--mode);
+  transition: background .4s, box-shadow .4s, transform .1s;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; padding: 0;
+}
+.btn-main:not(.running) {
+  /* 微调播放按钮的位置 */
+  transform: translateX(2px);
+}
+.btn-main:hover  { filter: brightness(1.1); }
+.btn-main:active { transform: scale(.93); }
+.btn-main:not(.running):active { transform: scale(.93) translateX(2px); }
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 16px var(--mode); }
+  50%      { box-shadow: 0 0 32px var(--mode); }
+}
+.btn-main.running { animation: pulse 2s ease-in-out infinite; }
+
+/* ── 任务列表 ── */
+.tasks-section { width: 100%; max-width: 480px; background: var(--surface); border-radius: 20px; padding: 20px; border: 1px solid var(--border); }
+.tasks-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.tasks-title { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+.task-stat { font-size: 12px; color: var(--text-dim); flex: 1; text-align: center; }
+.task-global-menu-btn { background: rgba(115, 115, 115, 0.08); border: none; color: #000000; cursor: pointer; font-size: 24px; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.task-global-menu-btn:hover { background: var(--border); color: var(--text); }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* 添加任务按钮 */
+.btn-add-task { width: 100%; padding: 14px; border: 1.5px dashed var(--border); border-radius: 12px; background: none; color: var(--text-dim); font-size: 14px; cursor: pointer; margin-bottom: 12px; transition: border-color .2s, color .2s; font-family: inherit; min-height: 60px; }
+.btn-add-task:hover { border-color: var(--mode); color: var(--mode); }
+
+/* 表单卡片（新建 & 编辑共用） */
+.task-form-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+[data-theme="light"] .task-form-card { background: #f8f9fa; border-color: rgba(0,0,0,0.12); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.tf-name { width: 100%; background: none; border: none; outline: none; resize: none; color: var(--text); font-size: 18px; font-family: inherit; line-height: 1.5; min-height: 32px; margin-bottom: 12px; font-weight: 500; }
+.tf-name::placeholder { color: var(--text-hint); }
+.tf-edit-title { width: 100%; background: none; border: none; outline: none; resize: none; color: var(--text); font-size: 17px; font-weight: 600; font-family: inherit; line-height: 1.4; min-height: 28px; margin-bottom: 14px; }
+.tf-meta-row { display: grid; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tf-label, .tf-meta-label { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 10px; margin-bottom: 10px; }
+.tf-stepper { display: flex; align-items: center; gap: 6px; }
+.tf-num { width: 70px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; color: var(--text); font-size: 15px; text-align: center; outline: none; font-family: inherit; -moz-appearance: textfield; height: 32px; }
+.tf-num::-webkit-inner-spin-button, .tf-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+.tf-num:focus { border-color: var(--mode); }
+.tf-stepper-sep { font-size: 14px; color: var(--text-dim); }
+.tf-arrows { display: flex; flex-direction: row; gap: 2px; font-size: 16px; height: auto; padding-left: 0; padding-right: 0; }
+.tf-arrow { width: 28px; height: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; cursor: pointer; font-size: 14px; color: var(--text-dim); display: flex; align-items: center; justify-content: center; transition: background .15s; margin-left: 1px; margin-right: 1px; transform: rotate(360deg); }
+.tf-arrows .tf-arrow:first-child { display: grid; }
+.tf-arrows .tf-arrow:last-child { margin-left: 0px; margin-right: 0px; }
+.tf-arrow:hover { background: var(--border); color: var(--text); }
+.tf-note { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 72px; outline: none; margin-bottom: 8px; transition: border-color .2s; }
+.tf-note:focus { border-color: var(--mode); }
+.tf-note::placeholder { color: var(--text-hint); }
+.tf-project-row { margin-bottom: 8px; }
+.tf-project-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: var(--text); font-size: 13px; font-family: inherit; outline: none; transition: border-color .2s; display: block; height: 60px; }
+.tf-project-input:focus { border-color: var(--mode); }
+.tf-project-input::placeholder { color: var(--text-hint); }
+.tf-links { display: flex; gap: 14px; margin-bottom: 12px; }
+.tf-link { background: none; border: none; color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; transition: color .15s; }
+.tf-link:hover { color: var(--mode); }
+.tf-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+.tf-edit-actions { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+.tf-edit-right { display: flex; gap: 10px; }
+.tf-cancel { background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; font-family: inherit; padding: 8px 14px; border-radius: 8px; transition: color .15s; }
+.tf-cancel:hover { color: var(--text); }
+.tf-save { background: var(--text); border: none; color: var(--bg); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 8px 20px; border-radius: 8px; transition: opacity .15s; }
+.tf-save:hover { opacity: .85; }
+.tf-del { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 7px; transition: color .15s, background .15s; }
+.tf-del:hover { color: #e74c3c; background: rgba(231,76,60,.1); }
+
+/* 任务条目 */
+.task-item { display: flex; flex-direction: column; background: var(--surface2); border-radius: 12px; padding: 12px; border: 2px solid transparent; transition: border-color .2s, opacity .2s; }
+.task-item.active-task { border-color: var(--mode); }
+.task-item.done-task { opacity: .45; }
+.task-item-row { display: flex; align-items: center; gap: 10px; }
+.task-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--text-dim); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; cursor: pointer; }
+.task-item.done-task .task-check { background: var(--mode); border-color: var(--mode); }
+.task-check-icon { font-size: 11px; color: #fff; display: none; }
+.task-item.done-task .task-check-icon { display: block; }
+.task-name { flex: 1; font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-weight: 500; }
+.task-item.done-task .task-name { text-decoration: line-through; color: var(--text-dim); }
+.task-count { font-size: 16px; color: var(--text-dim); flex-shrink: 0; white-space: nowrap; height: auto; border-width: 0px; border-style: solid; border-color: #000000; background: transparent; font-weight: 600; }
+.task-count .tc-used { color: var(--mode); font-weight: 600; font-size: 16px; }
+.task-project-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--mode) 15%, transparent); color: var(--mode); font-weight: 600; margin-left: 4px; vertical-align: middle; line-height: 17px; }
+.task-meta-row { display: flex; gap: 8px; margin-top: 8px; }
+.task-project-preview { flex: 1; padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--mode) 15%, transparent); font-size: 13px; color: var(--mode); font-weight: 600; line-height: 1.5; white-space: pre-wrap; word-break: break-word; height: 60px; }
+.task-note-preview { flex: 1; padding: 7px 10px; border-radius: 8px; background: rgba(255,220,100,.13); font-size: 13px; color: var(--text-dim); line-height: 1.5; white-space: pre-wrap; word-break: break-word; height: 60px; font-weight: 500; }
+[data-theme="light"] .task-note-preview { background: rgba(255,220,100,.28); }
+.task-menu-btn { background: rgba(115, 115, 115, 0.08); border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; width: 36px; height: 44px; border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; position: relative; }
+.task-menu-btn::after { content: '⋮'; font-size: 18px; font-weight: 300; }
+.task-menu-btn:hover { background: var(--border); color: var(--text); }
+.task-menu-popup { position: absolute; right: 0; top: 32px; z-index: 50; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.25); min-width: 130px; overflow: hidden; }
+[data-theme="light"] .task-menu-popup { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.task-menu-item { display: block; width: 100%; padding: 10px 14px; background: none; border: none; color: var(--text); font-size: 13px; text-align: left; cursor: pointer; font-family: inherit; transition: background .12s; }
+.task-menu-item:hover { background: var(--border); }
+.task-menu-item.danger { color: #e74c3c; }
+
+/* Tooltip */
+.has-tip { position: relative; }
+.has-tip::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 7px); left: 50%;
+  transform: translateX(-50%); background: rgba(0,0,0,0.78); color: #fff;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 99;
+}
+.has-tip:hover::after { opacity: 1; }
+
+/* ── 设置面板 ── */
+.overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 100; align-items: center; justify-content: center; padding: 20px;
+}
+.overlay.open { display: flex; }
+.settings-panel {
+  background: #1E2A3A; border-radius: 16px; padding: 0;
+  width: 100%; max-width: 360px; box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  animation: slideUp .3s cubic-bezier(.34,1.56,.64,1);
+  overflow: hidden;
+}
+[data-theme="light"] .settings-panel { background: #f0f4f8; }
+
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* 设置面板头部 */
+.sp-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+[data-theme="light"] .sp-header { border-bottom-color: rgba(0,0,0,0.08); }
+.sp-header svg { width: 18px; height: 18px; fill:none; stroke: var(--text-dim); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+.sp-title { flex: 1; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+.sp-close {
+  width: 28px; height: 28px; border-radius: 8px; border: none;
+  background: rgba(255,255,255,0.08); color: var(--text-dim);
+  font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .2s, color .2s; line-height: 1;
+}
+[data-theme="light"] .sp-close { background: rgba(0,0,0,0.07); }
+.sp-close:hover { background: rgba(231,76,60,.2); color: #e74c3c; }
+
+/* 设置面板主体 */
+.sp-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* 标签 */
+.sp-label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; letter-spacing: 0.2px; }
+
+/* 数字输入框 */
+.sp-input {
+  width: 100%; background: #131E2D; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 11px 14px; color: var(--text);
+  font-size: 15px; outline: none; font-family: inherit;
+  transition: border-color .2s;
+}
+[data-theme="light"] .sp-input { background: #e8edf2; border-color: rgba(0,0,0,0.1); }
+.sp-input:focus { border-color: var(--mode); }
+
+/* 下拉选择 */
+.sp-select {
+  width: 100%; background: #131E2D; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 11px 14px; color: var(--text);
+  font-size: 14px; outline: none; font-family: inherit; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  transition: border-color .2s;
+}
+[data-theme="light"] .sp-select { background-color: #e8edf2; border-color: rgba(0,0,0,0.1); }
+.sp-select:focus { border-color: var(--mode); }
+.sp-select option { background: #1E2A3A; }
+[data-theme="light"] .sp-select option { background: #fff; color: #333; }
+
+/* 预览按钮 */
+.sp-preview-btn {
+  width: 100%; padding: 11px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text); font-size: 14px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .2s;
+}
+[data-theme="light"] .sp-preview-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); }
+.sp-preview-btn:hover { background: rgba(255,255,255,0.12); }
+[data-theme="light"] .sp-preview-btn:hover { background: rgba(0,0,0,0.1); }
+
+/* 音量行 */
+.sp-volume-row { display: flex; align-items: center; gap: 10px; }
+.sp-volume-slider { flex: 1; -webkit-appearance: none; height: 5px; background: rgba(255,255,255,0.12); border-radius: 3px; outline: none; cursor: pointer; }
+[data-theme="light"] .sp-volume-slider { background: rgba(0,0,0,0.12); }
+.sp-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); cursor: pointer; }
+.sp-volume-num {
+  width: 48px; background: #131E2D; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 6px 4px; color: var(--text); font-size: 13px;
+  text-align: center; outline: none; font-family: inherit;
+}
+[data-theme="light"] .sp-volume-num { background: #e8edf2; border-color: rgba(0,0,0,0.1); }
+.sp-pct { font-size: 12px; color: var(--text-dim); }
+
+/* 开关行 */
+.sp-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.sp-toggle-label { font-size: 14px; font-weight: 500; }
+.sp-toggle {
+  position: relative; width: 44px; height: 24px; flex-shrink: 0;
+}
+.sp-toggle input { opacity: 0; width: 0; height: 0; }
+.sp-toggle-track {
+  position: absolute; inset: 0; border-radius: 24px;
+  background: rgba(255,255,255,0.15); cursor: pointer; transition: background .3s;
+}
+[data-theme="light"] .sp-toggle-track { background: rgba(0,0,0,0.15); }
+.sp-toggle input:checked + .sp-toggle-track { background: var(--mode); }
+.sp-toggle-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  transition: transform .3s; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.sp-toggle input:checked + .sp-toggle-track::after { transform: translateX(20px); }
+
+/* 分割线 */
+.sp-divider { height: 1px; background: rgba(255,255,255,0.07); }
+[data-theme="light"] .sp-divider { background: rgba(0,0,0,0.08); }
+.tasks-section .sp-divider { margin-bottom: 16px; }
+
+/* 通知权限状态 */
+.sp-notif-status {
+  font-size: 12px; color: var(--text-dim); padding: 4px 2px 2px;
+  line-height: 1.5;
+}
+.sp-notif-status.granted { color: #27AE60; }
+.sp-notif-status.denied  { color: #E74C3C; }
+.sp-notif-status.warn    { color: #E67E22; }
+.main-notif-hint {
+  font-size: 12px; color: var(--text-dim); text-align: center;
+  margin-top: -24px; margin-bottom: 14px; min-height: 16px;
+  letter-spacing: 0.01em; transition: color .3s;
+}
+.main-notif-hint.on  { color: #27AE60; }
+.main-notif-hint.err { color: #E74C3C; }
+.main-notif-hint.warn { color: #E67E22; }
+
+/* 重置按钮 */
+.sp-reset-btn {
+  width: 100%; padding: 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-dim); font-size: 14px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .2s, color .2s;
+}
+[data-theme="light"] .sp-reset-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+.sp-reset-btn:hover { background: rgba(231,76,60,.1); color: #e74c3c; border-color: rgba(231,76,60,.3); }
+
+/* ── 设置时间行（可点击） ── */
+.sp-time-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  background: #131E2D; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; cursor: pointer; transition: background .2s;
+}
+[data-theme="light"] .sp-time-row { background: #e8edf2; border-color: rgba(0,0,0,0.1); }
+.sp-time-row:hover { background: rgba(255,255,255,0.1); }
+[data-theme="light"] .sp-time-row:hover { background: rgba(0,0,0,0.1); }
+.sp-time-display { font-size: 15px; font-weight: 500; }
+.sp-time-chevron { font-size: 20px; color: var(--text-dim); line-height: 1; }
+
+/* ── 时间滚轮选择器 ── */
+.tp-input-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 20px 10px; border-bottom: 1px solid var(--border);
+}
+.tp-direct-input {
+  width: 80px; background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 8px 0; color: var(--text); font-size: 22px;
+  font-weight: 300; text-align: center; outline: none; font-family: inherit;
+  transition: border-color .2s; -moz-appearance: textfield;
+}
+.tp-direct-input::-webkit-outer-spin-button,
+.tp-direct-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.tp-direct-input:focus { border-color: var(--mode); }
+[data-theme="light"] .tp-direct-input { background: #e8edf2; }
+.tp-input-unit { font-size: 14px; color: var(--text-dim); }
+
+.tp-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 300; align-items: flex-end; justify-content: center;
+}
+.tp-overlay.open { display: flex; }
+.tp-sheet {
+  background: var(--surface); width: 100%; max-width: 480px;
+  border-radius: 20px 20px 0 0; overflow: hidden;
+  animation: slideUpSheet .28s cubic-bezier(.25,.46,.45,.94);
+}
+[data-theme="light"] .tp-sheet { background: #fff; }
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); opacity: .6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.tp-header {
+  padding: 16px 20px 12px; text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.tp-title { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+.tp-body {
+  display: flex; align-items: center; justify-content: center;
+  height: 220px; position: relative; overflow: hidden;
+}
+/* 上下渐隐遮罩 */
+.tp-body::before, .tp-body::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 88px;
+  pointer-events: none; z-index: 2;
+}
+.tp-body::before { top: 0; background: linear-gradient(to bottom, var(--surface) 0%, transparent 100%); }
+.tp-body::after  { bottom: 0; background: linear-gradient(to top,   var(--surface) 0%, transparent 100%); }
+[data-theme="light"] .tp-body::before { background: linear-gradient(to bottom, #fff 0%, transparent 100%); }
+[data-theme="light"] .tp-body::after  { background: linear-gradient(to top,   #fff 0%, transparent 100%); }
+/* 中间选中框 */
+.tp-sel-bar {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: 210px; height: 44px; top: 50%; margin-top: -22px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px; pointer-events: none; z-index: 1;
+}
+/* 滚动列 */
+.tp-col {
+  width: 90px; height: 220px;
+  overflow-y: scroll; scroll-snap-type: y mandatory;
+  -ms-overflow-style: none; scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tp-col::-webkit-scrollbar { display: none; }
+.tp-item {
+  height: 44px; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 300; scroll-snap-align: center;
+  color: var(--text); opacity: .35; transition: opacity .15s, font-size .15s;
+  cursor: pointer;
+}
+.tp-item.tp-selected { opacity: 1; font-size: 28px; font-weight: 400; }
+.tp-pad { height: 44px; flex-shrink: 0; }
+.tp-unit-label {
+  font-size: 14px; color: var(--text-dim); width: 26px;
+  text-align: left; flex-shrink: 0; position: relative; z-index: 3;
+  margin-left: 2px; font-weight: 500;
+}
+.tp-done-wrap { padding: 12px 20px 28px; }
+.tp-done {
+  display: block; width: 100%; padding: 14px;
+  background: var(--mode); border: none; border-radius: 14px;
+  color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: filter .2s;
+}
+.tp-done:hover { filter: brightness(1.1); }
+
+/* ── Toast ─ */
+.toast {
+  position: fixed; bottom: 32px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--mode); color: #fff;
+  padding: 11px 24px; border-radius: 30px; font-size: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1), opacity .4s;
+  opacity: 0; white-space: nowrap; z-index: 200; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* ── 响铃全屏界面 ── */
+.alarm-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  display: none; flex-direction: column; align-items: center;
+  justify-content: space-between; padding: 60px 24px 56px;
+  background: linear-gradient(180deg, #0a0a1a 0%, #111 100%);
+  color: #fff; animation: alarmFadeIn .4s ease;
+}
+.alarm-screen.show { display: flex; }
+@keyframes alarmFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 顶部：闹钟图标 + 时间 */
+.alarm-top { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+.alarm-clock-icon {
+  width: 80px; height: 80px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  animation: alarmShake 0.4s ease-in-out infinite alternate;
+}
+.alarm-clock-icon svg { width: 48px; height: 48px; }
+@keyframes alarmShake {
+  0% { transform: rotate(-8deg); }
+  100% { transform: rotate(8deg); }
+}
+
+.alarm-time {
+  font-size: 64px; font-weight: 200; letter-spacing: 3px;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+
+.alarm-mode-tag {
+  display: inline-block; padding: 5px 18px; border-radius: 20px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* 中间：状态文案 */
+.alarm-middle { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.alarm-label {
+  font-size: 24px; font-weight: 600; letter-spacing: 0.5px;
+}
+
+.alarm-sublabel {
+  font-size: 14px; opacity: 0.45; line-height: 1.5; text-align: center; font-weight: 400;
+}
+
+/* 底部：操作按钮 */
+.alarm-bottom { display: flex; flex-direction: column; align-items: center; gap: 40px; width: 100%; }
+
+.alarm-actions {
+  display: flex; gap: 48px; align-items: center; justify-content: center;
+}
+
+.alarm-action {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer; border: none; background: none; color: #fff;
+  -webkit-tap-highlight-color: transparent;
+}
+.alarm-action:active .alarm-action-circle { transform: scale(0.9); }
+
+.alarm-action-circle {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s;
+}
+.alarm-action-circle svg { width: 28px; height: 28px; }
+
+.alarm-action-text {
+  font-size: 12px; opacity: 0.5; white-space: nowrap; font-weight: 500;
+}
+
+/* 稍后提醒按钮 */
+.alarm-action-snooze .alarm-action-circle {
+  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.2);
+}
+
+/* 停止按钮 - 主色高亮 */
+.alarm-action-stop .alarm-action-circle {
+  animation: stopGlow 2s ease-in-out infinite;
+}
+@keyframes stopGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.2); }
+  50% { box-shadow: 0 0 0 14px rgba(255,255,255,0); }
+}
+
+/* 底部滑动提示 */
+.alarm-swipe-hint {
+  font-size: 12px; opacity: 0.2; display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 400;
+}
+.alarm-swipe-hint svg {
+  width: 20px; height: 20px; opacity: 0.4;
+  animation: swipeUp 1.5s ease-in-out infinite;
+}
+@keyframes swipeUp {
+  0% { transform: translateY(6px); opacity: 0.15; }
+  50% { transform: translateY(-2px); opacity: 0.5; }
+  100% { transform: translateY(6px); opacity: 0.15; }
+}
+
+/* ── 更新对话框 ── */
+.update-dialog {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.update-dialog.show { opacity: 1; pointer-events: auto; }
+.update-overlay {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+}
+.update-content {
+  position: relative; background: var(--surface);
+  border-radius: 16px; padding: 24px; width: 90%; max-width: 360px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  transform: translateY(20px); transition: transform .3s;
+}
+.update-dialog.show .update-content { transform: translateY(0); }
+.update-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.update-header h3 { font-size: 18px; font-weight: 600; margin: 0; }
+.update-version {
+  font-size: 13px; color: var(--text-dim);
+  padding: 3px 10px; border-radius: 12px;
+  background: var(--border);
+}
+.update-body { margin-bottom: 20px; }
+.update-changelog {
+  font-size: 13px; line-height: 1.6; color: var(--text-dim);
+  max-height: 200px; overflow-y: auto;
+  background: var(--surface2); padding: 12px; border-radius: 8px;
+  white-space: pre-wrap;
+}
+.update-actions {
+  display: flex; gap: 12px; justify-content: flex-end;
+}
+.update-cancel, .update-confirm {
+  padding: 10px 20px; border-radius: 8px; font-size: 14px;
+  font-weight: 500; cursor: pointer; border: none;
+  font-family: inherit; transition: all .2s;
+}
+.update-cancel {
+  background: var(--border); color: var(--text-dim);
+}
+.update-cancel:hover { background: rgba(255,255,255,0.1); }
+.update-confirm {
+  background: var(--mode); color: #fff;
+}
+.update-confirm:hover { filter: brightness(1.1); }
+
+/* 更新提示 Toast */
+.update-toast {
+  position: fixed; bottom: 80px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--mode); color: #fff;
+  padding: 11px 24px; border-radius: 30px; font-size: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transition: transform .3s, opacity .3s;
+  opacity: 0; white-space: nowrap; z-index: 10001; pointer-events: none;
+}
+.update-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+
+/* ── 浪漫彩蛋页面 ── */
+.romantic-overlay {
+  position: fixed; inset: 0; z-index: 8888;
+  display: none; flex-direction: column; align-items: center;
+  justify-content: space-between; padding: 48px 24px 40px;
+  background: linear-gradient(145deg, #f5a623 0%, #f7b731 25%, #e8913a 55%, #d4822a 100%);
+  color: #1a1a1a; overflow: hidden;
+}
+/* 斜条纹光影 */
+.romantic-overlay::before {
+  content: ''; position: absolute; inset: -50%; z-index: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 40px,
+    transparent 40px, transparent 80px
+  );
+  transform: rotate(0deg); pointer-events: none;
+}
+.romantic-overlay.show { display: flex; }
+
+/* 飘落的爱心粒子 */
+.hearts-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+/* 顶部日期区 - 左对齐 */
+.romantic-top {
+  position: relative; z-index: 1; align-self: flex-start; padding-left: 8px;
+}
+.romantic-top-year {
+  font-size: 48px; font-weight: 800; line-height: 1; opacity: 0.95;
+}
+.romantic-top-date {
+  font-size: 28px; font-weight: 700; opacity: 0.9; margin-top: 2px;
+}
+.romantic-top-day {
+  font-size: 15px; opacity: 0.6; margin-top: 2px;
+}
+
+/* 中间情话 */
+.romantic-middle {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 0 28px; text-align: center;
+}
+
+.romantic-title {
+  font-size: 20px; font-weight: 600; color: #1a1a1a; letter-spacing: 0.3px;
+}
+
+.romantic-poem {
+  font-size: 13px; line-height: 2; opacity: 0.85;
+  font-weight: 300; letter-spacing: 0.3px;
+}
+
+/* 底部区域 */
+.romantic-bottom-area {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+
+.romantic-years-row {
+  display: flex; align-items: baseline; gap: 6px;
+}
+.romantic-years {
+  font-size: 72px; font-weight: 700; line-height: 1; color: #1a1a1a;
+}
+.romantic-years-label {
+  font-size: 24px; font-weight: 600; opacity: 0.9;
+}
+
+.romantic-married {
+  font-size: 18px; font-weight: 600; opacity: 0.85;
+  letter-spacing: 1.5px; margin-top: -4px;
+}
+
+.romantic-date {
+  font-size: 11px; opacity: 0.55; letter-spacing: 1.5px;
+  padding: 5px 14px; border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.06);
+}
+
+.romantic-music-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 9px 20px; border-radius: 24px;
+  background: rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.15);
+  color: #1a1a1a; font-size: 13px; cursor: pointer;
+  font-family: inherit; transition: all .3s; font-weight: 500;
+}
+.romantic-music-btn:hover { background: rgba(0,0,0,0.12); }
+.romantic-music-btn.playing { background: rgba(0,0,0,0.1); border-color: rgba(0,0,0,0.25); }
+
+.romantic-music-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(0,0,0,0.08); font-size: 11px;
+}
+.romantic-music-btn.playing .romantic-music-icon {
+  animation: musicSpin 2s linear infinite;
+}
+@keyframes musicSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.romantic-dedication {
+  font-size: 11px; line-height: 1.8; opacity: 0.45;
+  letter-spacing: 0.3px; text-align: center;
+  border-top: 1px solid rgba(0,0,0,0.1);
+  padding-top: 10px; margin-top: 2px;
+}
+
+.romantic-close {
+  position: absolute; top: 16px; right: 16px; z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.12);
+  color: rgba(0,0,0,0.5); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; transition: all .2s;
+}
+.romantic-close:hover { background: rgba(0,0,0,0.15); color: #000; }
+
+/* 魔法棒按钮闪烁 */
+.icon-btn.magic-btn { position: relative; }
+.icon-btn.magic-btn::after {
+  content: ''; position: absolute; top: 4px; right: 4px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #ff6b9d; animation: magicDot 2s ease-in-out infinite;
+}
+@keyframes magicDot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ── 当前任务标签 ── */
+.active-task-label {
+  font-size: 12px; color: var(--text-dim); max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: center; min-height: 0; transition: opacity .3s;
+  height: auto; font-weight: 400;
+}
+.active-task-label:empty {
+  display: none;
+}
+
+.tasks-header-right { display: flex; align-items: center; gap: 6px; }
+
+</style>
+</head>
+<body>
+
+<!-- 响铃全屏界面 -->
+<div class="alarm-screen" id="alarmScreen">
+  <!-- 顶部：闹钟 + 时间 -->
+  <div class="alarm-top">
+    <div class="alarm-clock-icon" id="alarmClockIcon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="13" r="8"/>
+        <path d="M12 9v4l2 2"/>
+        <path d="M5 3L2 6"/><path d="M22 6l-3-3"/>
+        <path d="M6.38 18.7L4 21"/><path d="M17.64 18.67L20 21"/>
+      </svg>
+    </div>
+    <div class="alarm-time" id="alarmTime">19:02</div>
+    <div class="alarm-mode-tag" id="alarmModeTag">🍅 专注结束</div>
+  </div>
+
+  <!-- 中间：状态文案 -->
+  <div class="alarm-middle">
+    <div class="alarm-label" id="alarmLabel">计时完成</div>
+    <div class="alarm-sublabel" id="alarmSub">番茄时钟</div>
+  </div>
+
+  <!-- 底部：操作按钮 -->
+  <div class="alarm-bottom">
+    <div class="alarm-actions">
+      <!-- 稍后提醒 -->
+      <button class="alarm-action alarm-action-snooze" onclick="snoozeAlarm()">
+        <div class="alarm-action-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 12a11 11 0 1 1-4.2-8.7"/>
+            <polyline points="23 3 23 8 18 8"/>
+          </svg>
+        </div>
+        <span class="alarm-action-text" id="alarmSnoozeText">稍后提醒</span>
+      </button>
+      <!-- 停止 -->
+      <button class="alarm-action alarm-action-stop" onclick="dismissAlarm()">
+        <div class="alarm-action-circle" id="alarmStopCircle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </div>
+        <span class="alarm-action-text" id="alarmStopText">停止响铃</span>
+      </button>
+    </div>
+    <div class="alarm-swipe-hint" id="alarmHint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      <span id="alarmHintText">上滑或点击停止以关闭响铃</span>
+    </div>
+  </div>
+</div>
+
+<!-- 浪漫彩蛋 -->
+<div class="romantic-overlay" id="romanticOverlay">
+  <button class="romantic-close" onclick="closeRomantic()">✕</button>
+  <canvas class="hearts-canvas" id="heartsCanvas"></canvas>
+  <audio id="romanticAudio" src="laopo.mp3" preload="none" loop></audio>
+  <audio id="snd-westminster"  src="li-bing-tower-clock-chimewestminster-187254.mp3" preload="none"></audio>
+  <audio id="snd-countdown-mp3" src="u_lfmkadc0ha-timer_countdown-345137.mp3" preload="none"></audio>
+
+  <!-- 顶部：日期 左对齐 -->
+  <div class="romantic-top">
+    <div class="romantic-top-year">2014</div>
+    <div class="romantic-top-date">5 / 20</div>
+    <div class="romantic-top-day">周二</div>
+  </div>
+
+  <!-- 中间：情话内容 -->
+  <div class="romantic-middle">
+    <div class="romantic-title" id="romanticTitle">十二年，感谢有你</div>
+    <div class="romantic-poem" id="romanticPoem"></div>
+  </div>
+
+  <!-- 底部：12周年 + 音乐 + 纪念文字 -->
+  <div class="romantic-bottom-area">
+    <div class="romantic-years-row">
+      <span class="romantic-years">12</span>
+      <span class="romantic-years-label">周年</span>
+    </div>
+    <div class="romantic-married">我们结婚啦！</div>
+
+    <button class="romantic-music-btn" id="romanticMusicBtn" onclick="toggleRomanticMusic()">
+      <span class="romantic-music-icon" id="romanticMusicIcon">▶</span>
+      <span id="romanticMusicText">播放「做我老婆好不好」</span>
+    </button>
+
+    <div class="romantic-date">2014-5-20 — 2026-5-20</div>
+    <div class="romantic-dedication">
+      庆祝叶桂珍女士和徐安先生结婚十二周年<br>
+      感谢他们相濡以沫！<br>
+      特此开发番茄钟App纪念！
+    </div>
+  </div>
+</div>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="topbar-left" style="gap:6px;">
+    <button class="icon-btn" id="btnSettings" title="Settings" onclick="event.stopPropagation();openSettings()">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="icon-btn magic-btn" title="✨" onclick="event.stopPropagation();openRomantic()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="21" x2="15" y2="9"/>
+        <path d="M17 4l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/>
+        <line x1="7" y1="2" x2="7" y2="5"/><line x1="5.5" y1="3.5" x2="8.5" y2="3.5"/>
+        <line x1="20" y1="15" x2="20" y2="18"/><line x1="18.5" y1="16.5" x2="21.5" y2="16.5"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="app-title" id="appTitle">🍅 番茄时钟</div>
+
+  <div class="topbar-right">
+    <!-- 语言切换 -->
+    <button class="icon-btn" id="btnLang" title="Language" onclick="toggleLang()">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    </button>
+    <!-- 主题切换 -->
+    <button class="icon-btn" id="btnTheme" title="Theme" onclick="cycleTheme()">
+      <!-- 图标由 JS 动态替换 -->
+    </button>
+  </div>
+</div>
+
+<!-- 模式 Tab -->
+<div class="tabs">
+  <div class="tab active" data-mode="work"  id="tabWork">专注</div>
+  <div class="tab"        data-mode="short" id="tabShort">短休息</div>
+  <div class="tab"        data-mode="long"  id="tabLong">长休息</div>
+</div>
+
+<!-- 圆形计时器 -->
+<div class="timer-wrap">
+  <svg width="240" height="240" viewBox="0 0 240 240">
+    <circle class="timer-bg"   cx="120" cy="120" r="108"/>
+    <circle class="timer-ring" cx="120" cy="120" r="108" id="ring"/>
+  </svg>
+  <div class="timer-center" onclick="openTimePickerForMode()">
+    <div class="time-display" id="timeDisplay">25:00</div>
+    <div class="active-task-label" id="activeTaskLabel"></div>
+  </div>
+</div>
+
+<!-- 控制按钮 -->
+<div class="controls">
+  <button class="btn-ctrl has-tip" id="btnReset" data-tip="重置" onclick="resetTimer()"><span style="display:inline-block;transform: rotate(90deg);">↻</span></button>
+  <button class="btn-main" id="btnStart" onclick="toggle()">▶</button>
+  <button class="btn-ctrl has-tip" id="btnNotif" data-tip="" onclick="toggleNotif()"></button>
+</div>
+
+<!-- 通知状态提示 -->
+<div class="main-notif-hint" id="mainNotifHint"></div>
+
+<!-- 今日统计栏 -->
+<!-- 任务列表 -->
+<div class="tasks-section">
+  <div class="tasks-header">
+    <span class="tasks-title" id="tasksTitle">任务</span>
+    <button class="task-global-menu-btn">⋮</button>
+  </div>
+  <div class="sp-divider"></div>
+
+  <!-- 折叠态：添加按钮 -->
+  <button class="btn-add-task" id="btnOpenAddTask" onclick="openAddTask()">＋ <span id="btnAddTaskLabel">添加任务</span></button>
+
+  <!-- 展开态：新建表单卡片 -->
+  <div class="task-form-card" id="taskFormCard" style="display:none">
+    <textarea class="tf-name" id="tfName" rows="1" placeholder="你在做什么？"
+      oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+    <div class="tf-meta-row">
+      <span class="tf-label" id="tfLabelEst">预计番茄数</span>
+      <div class="tf-stepper">
+        <input class="tf-num" id="tfEst" type="number" value="1" min="1" max="20">
+        <div class="tf-arrows">
+          <button class="tf-arrow" onclick="stepEst(1)">▲</button>
+          <button class="tf-arrow" onclick="stepEst(-1)">▼</button>
+        </div>
+      </div>
+    </div>
+    <textarea class="tf-note" id="tfNote" rows="3" style="display:none"></textarea>
+    <div class="tf-project-row" id="tfProjectRow" style="display:none">
+      <input class="tf-project-input" id="tfProject">
+    </div>
+    <div class="tf-links">
+      <button class="tf-link" id="btnAddNote"    onclick="showTfNote()"></button>
+      <button class="tf-link" id="btnAddProject" onclick="showTfProject()"></button>
+    </div>
+    <div class="tf-actions">
+      <button class="tf-cancel" onclick="closeAddTask()" id="tfCancelBtn">取消</button>
+      <button class="tf-save"   onclick="addTask()"      id="tfSaveBtn">保存</button>
+    </div>
+  </div>
+
+  <div class="task-list" id="taskList"></div>
+</div>
+
+<!-- 设置面板 -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-panel">
+
+    <!-- 头部 -->
+    <div class="sp-header">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="sp-title" id="settingsTitle">设置</span>
+      <button class="sp-close" onclick="closeSettings()">✕</button>
+    </div>
+
+    <!-- 主体 -->
+    <div class="sp-body">
+
+      <!-- 专注时长 -->
+      <div>
+        <div class="sp-label" id="lblWork">专注时长</div>
+        <div class="sp-time-row" onclick="openTimePicker('work')">
+          <span class="sp-time-display" id="dispWork">25 分钟</span>
+          <span class="sp-time-chevron">›</span>
+        </div>
+        <input type="hidden" id="slWork" value="25">
+      </div>
+
+      <!-- 短暂休息 -->
+      <div>
+        <div class="sp-label" id="lblShort">短休息时长</div>
+        <div class="sp-time-row" onclick="openTimePicker('short')">
+          <span class="sp-time-display" id="dispShort">5 分钟</span>
+          <span class="sp-time-chevron">›</span>
+        </div>
+        <input type="hidden" id="slShort" value="5">
+      </div>
+
+      <!-- 长时间休息 -->
+      <div>
+        <div class="sp-label" id="lblLong">长休息时长</div>
+        <div class="sp-time-row" onclick="openTimePicker('long')">
+          <span class="sp-time-display" id="dispLong">15 分钟</span>
+          <span class="sp-time-chevron">›</span>
+        </div>
+        <input type="hidden" id="slLong" value="15">
+      </div>
+
+      <!-- 长休息前番茄数 -->
+      <div>
+        <div class="sp-label" id="lblSessions">长休息前番茄数</div>
+        <input class="sp-input" type="number" id="slSessions" min="2" max="8" value="4"
+               onchange="localStorage.setItem('cfg_sessions',this.value);CFG=loadCfg();CFG.lang=lang;">
+      </div>
+
+      <div class="sp-divider"></div>
+
+      <!-- 选择报警声 -->
+      <div>
+        <div class="sp-label" id="lblSound">响铃铃声</div>
+        <select class="sp-select" id="soundSelect" onchange="autoSaveSound();">
+          <option value="zen-bell"     data-i18n-opt="sndZenBell">禅钟</option>
+          <option value="marimba"      data-i18n-opt="sndMarimba">木琴</option>
+          <option value="crystal"      data-i18n-opt="sndCrystal">水晶音</option>
+          <option value="piano"        data-i18n-opt="sndPiano">钢琴提示</option>
+          <option value="music-box"    data-i18n-opt="sndMusicBox">音乐盒</option>
+          <option value="morning"      data-i18n-opt="sndMorning">清晨提示</option>
+          <option value="laopo"        data-i18n-opt="sndLaopo">做我老婆好不好</option>
+          <option value="westminster"  data-i18n-opt="sndWestminster">大本钟</option>
+          <option value="countdown-mp3" data-i18n-opt="sndCountdown">倒计时</option>
+          <option value="none"         data-i18n-opt="mute">静音</option>
+        </select>
+      </div>
+
+      <!-- 重复播放响铃 -->
+      <div class="sp-toggle-row">
+        <span class="sp-toggle-label" id="lblRepeat">重复播放响铃</span>
+        <label class="sp-toggle">
+          <input type="checkbox" id="chkRepeat" onchange="saveRepeat();">
+          <span class="sp-toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="sp-divider"></div>
+
+      <!-- 通知开关 -->
+      <div class="sp-toggle-row">
+        <span class="sp-toggle-label" id="lblNotif">通知</span>
+        <label class="sp-toggle">
+          <input type="checkbox" id="chkNotif" onchange="requestNotif(this.checked)">
+          <span class="sp-toggle-track"></span>
+        </label>
+      </div>
+      <div class="sp-notif-status" id="notifStatus"></div>
+
+      <!-- 自动开始下一阶段 -->
+      <div class="sp-toggle-row">
+        <span class="sp-toggle-label" id="lblAutoStart">自动开始下一阶段</span>
+        <label class="sp-toggle">
+          <input type="checkbox" id="chkAutoStart" onchange="autoStart=this.checked;safeSetItem('cfg_autostart',autoStart?'1':'0')">
+          <span class="sp-toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="sp-divider"></div>
+
+      <!-- 重置设置 -->
+      <button class="sp-reset-btn" onclick="resetSettings()">
+        ↺ <span id="lblReset">重置设置</span>
+      </button>
+
+      <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--text-dim);opacity:0.5;letter-spacing:0.05em;">v1.0.0</div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 时间滚轮选择器 -->
+<div class="tp-overlay" id="timePickerOverlay" onclick="if(!this.dataset.lock && event.target===this)closeTimePicker()">
+  <div class="tp-sheet">
+    <div class="tp-header">
+      <span class="tp-title" id="tpTitle">专注时长</span>
+    </div>
+    <div class="tp-input-row">
+      <input class="tp-direct-input" type="number" id="tpDirectInput" min="1" max="240"
+             oninput="syncTPFromInput(this.value)" placeholder="25">
+      <span class="tp-input-unit" id="tpInputUnit">分钟</span>
+    </div>
+    <div class="tp-body">
+      <div class="tp-sel-bar"></div>
+      <div class="tp-col" id="tpHours"></div>
+      <div class="tp-unit-label" id="tpUnitH">时</div>
+      <div class="tp-col" id="tpMins"></div>
+      <div class="tp-unit-label" id="tpUnitM">分</div>
+    </div>
+    <div class="tp-done-wrap">
+      <button class="tp-done" id="tpDoneBtn" onclick="confirmTimePicker()">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="update-check.js"></script>
+<script>
+// ══ 国际化文本 ════════════════════════════════
+const I18N = { zh: {
+    appTitle:     '🍅 番茄时钟',
+    btnSettings: '设置', btnLang: '切换语言', btnTheme: '切换主题',
+    tabWork:      '专注', tabShort: '短休息', tabLong: '长休息',
+    modeWork:     '专注工作', modeShort: '短暂休息', modeLong: '长休息',
+    dotsAll:      n => `完成 ${n} 个后长休息`,
+    dotsLeft:     n => `再 ${n} 个番茄后长休息`,
+    settingsTitle:'设置',
+    lblWork:      '专注时长', lblShort: '短休息时长', lblLong: '长休息时长',
+    lblSessions:  '长休息前番茄数',
+    unit:         n => `${n} 分钟`, unitSess: n => `${n} 个`,
+    lblSound:     '提示音效', lblTheme: '外观主题',
+    bell: '铃声', digital: '数字提示音', soft: '轻柔', mute: '静音',
+    sndZenBell: '禅钟', sndMarimba: '木琴', sndCrystal: '水晶音',
+    sndPiano: '钢琴提示', sndMusicBox: '音乐盒', sndMorning: '清晨提示',
+    sndLaopo: '做我老婆好不好', sndWestminster: '大本钟', sndCountdown: '倒计时',
+    lblPreview: '播放铃声', lblRepeat: '重复播放响铃',
+    lblVolume: '选择音量', lblNotif: '通知', lblReset: '重置设置',
+    lblSoundSel: '响铃铃声',
+    tpDone: '完成', tpUnitH: '时', tpUnitM: '分',
+    tpTitleWork: '修改专注时长', tpTitleShort: '修改短休息时长', tpTitleLong: '修改长休息时长',
+    tpMinDisp: m => `${m} 分钟`, tpHrDisp: h => `${h} 小时`,
+    tpHrMinDisp: (h,m) => `${h} 小时 ${m} 分钟`,
+    tasksTitle:   '任务',
+    taskPlaceholder: '你在做什么？',
+    taskAddTask: '添加任务',
+    taskAddNote: '＋ 添加备注', taskNotePlaceholder: '备注...',
+    taskAddProject: '＋ 添加项目', taskProjectPlaceholder: '项目名称...',
+    taskActEst: '实际 / 预计番茄数',
+    taskEstLabel: '预计番茄数',
+    taskMenuSetActive: '设为当前任务', taskMenuEdit: '编辑', taskMenuDelete: '删除',
+    tfCancel: '取消',
+    tfSave: '保存',
+    toastSaved:   '✓ 设置已保存',
+    toastLong:    n => `🎉 完成第 ${n} 个番茄！长休息`,
+    toastShort:   n => `✅ 完成第 ${n} 个番茄！短休息`,
+    toastBack:    '💪 休息结束！继续专注',
+    notifTitle:   '🍅 番茄时钟',
+    notifOn:      '🔔 通知已开启',
+    notifOff:     '🔕 通知已关闭',
+    notifBlocked: '通知权限已被拒绝，请在系统/浏览器设置中手动开启',
+    notifTipOn: '启用通知', notifTipOff: '禁用通知',
+    notifGranted: '✓ 系统权限：已允许',
+    notifDenied:  '✕ 系统权限：已拒绝（请在系统设置中手动开启）',
+    notifDefault: '○ 系统权限：尚未授权，开启开关即可申请',
+    notifUnsupported: '⚠ 当前浏览器/环境不支持通知',
+    notifHintDenied: '⚠ 通知权限被拒绝，请在系统设置中开启',
+    resetTip: '重置',
+    taskPomos: '番茄数', taskDone: '已完成',
+    taskSetActive: '设为当前', taskEditTip: '编辑',
+    alarmWork: '专注结束', alarmShort: '短休息结束', alarmLong: '长休息结束',
+    alarmTagWork: '🍅 专注结束', alarmTagShort: '☕ 短休息结束', alarmTagLong: '🌙 长休息结束',
+    alarmLabelWork: '辛苦了，休息一下', alarmLabelShort: '休息结束啦', alarmLabelLong: '长休息结束',
+    alarmSubWork: '完成了一个番茄，起来走走吧', alarmSubShort: '继续专注，你做得很棒！', alarmSubLong: '精力充沛，继续加油！',
+    alarmStop: '停止响铃', alarmSnooze: '稍后提醒', alarmHint: '上滑或点击停止以关闭响铃',
+    lblAutoStart: '自动开始下一阶段',
+  },
+  en: {
+    appTitle:     '🍅 Pomodoro',
+    btnSettings: 'Settings', btnLang: 'Language', btnTheme: 'Theme',
+    tabWork:      'Focus', tabShort: 'Short Break', tabLong: 'Long Break',
+    modeWork:     'Focus', modeShort: 'Short Break', modeLong: 'Long Break',
+    dotsAll:      n => `Long break after ${n} pomodoros`,
+    dotsLeft:     n => `${n} more pomodoro${n>1?'s':''} to long break`,
+    settingsTitle:'Settings',
+    lblWork:      'Focus Duration', lblShort: 'Short Break', lblLong: 'Long Break',
+    lblSessions:  'Pomodoros before long break',
+    unit:         n => `${n} min`, unitSess: n => `${n}`,
+    lblSound:     'Alert Sound', lblTheme: 'Theme',
+    bell: 'Bell', digital: 'Digital', soft: 'Soft', mute: 'Mute',
+    sndZenBell: 'Zen Bell', sndMarimba: 'Marimba', sndCrystal: 'Crystal',
+    sndPiano: 'Piano', sndMusicBox: 'Music Box', sndMorning: 'Morning',
+    sndLaopo: 'Will You Marry Me', sndWestminster: 'Westminster', sndCountdown: 'Countdown',
+    lblPreview: 'Play Ringtone', lblRepeat: 'Repeat Alarm',
+    lblVolume: 'Volume', lblNotif: 'Notifications', lblReset: 'Reset Settings',
+    lblSoundSel: 'Alarm Ringtone',
+    tpDone: 'Done', tpUnitH: 'hr', tpUnitM: 'min',
+    tpTitleWork: 'Edit Focus', tpTitleShort: 'Edit Short Break', tpTitleLong: 'Edit Long Break',
+    tpMinDisp: m => `${m} min`, tpHrDisp: h => `${h} hr`,
+    tpHrMinDisp: (h,m) => `${h} hr ${m} min`,
+    tasksTitle:   'Tasks',
+    taskPlaceholder: 'What are you working on?',
+    taskAddTask: 'Add Task',
+    taskAddNote: '+ Add Note', taskNotePlaceholder: 'Some notes...',
+    taskAddProject: '+ Add Project', taskProjectPlaceholder: 'Project name...',
+    taskActEst: 'Act / Est Pomodoros',
+    taskEstLabel: 'Est Pomodoros',
+    taskMenuSetActive: 'Set as active', taskMenuEdit: 'Edit', taskMenuDelete: 'Delete',
+    tfCancel: 'Cancel',
+    tfSave: 'Save',
+    toastSaved:   '✓ Settings saved',
+    toastLong:    n => `🎉 Pomodoro #${n} done! Long break`,
+    toastShort:   n => `✅ Pomodoro #${n} done! Short break`,
+    toastBack:    '💪 Break over! Time to focus',
+    notifTitle:   '🍅 Pomodoro Timer',
+    notifOn:      '🔔 Notifications on',
+    notifOff:     '🔕 Notifications off',
+    notifBlocked: 'Permission denied — enable in system/browser settings',
+    notifTipOn: 'Enable notifications', notifTipOff: 'Disable notifications',
+    notifGranted: '✓ Permission: granted',
+    notifDenied:  '✕ Permission: denied (enable in system settings)',
+    notifDefault: '○ Not yet requested — toggle to ask',
+    notifUnsupported: '⚠ Notifications not supported in this browser',
+    notifHintDenied: '⚠ Notification permission denied — enable in system settings',
+    resetTip: 'Reset',
+    taskPomos: 'Pomodoros', taskDone: 'Completed',
+    taskSetActive: 'Set active', taskEditTip: 'Edit',
+    alarmWork: 'Focus Complete', alarmShort: 'Short Break Over', alarmLong: 'Long Break Over',
+    alarmTagWork: '🍅 Focus Done', alarmTagShort: '☕ Break Over', alarmTagLong: '🌙 Long Break Over',
+    alarmLabelWork: 'Great work! Take a break', alarmLabelShort: 'Break is over', alarmLabelLong: 'Long break is over',
+    alarmSubWork: 'You finished a pomodoro, stretch a bit!', alarmSubShort: 'Keep going, you\'re doing great!', alarmSubLong: 'Recharged! Let\'s keep going!',
+    alarmStop: 'Stop', alarmSnooze: 'Snooze', alarmHint: 'Swipe up or tap Stop to dismiss',
+    lblAutoStart: 'Auto-start next',
+  }
+};
+
+// ══ 主题 SVG 图标 ════════════════════════════
+const THEME_ICONS = {
+  system: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;width:18px;height:18px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+  light:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;width:18px;height:18px"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
+  dark:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;width:18px;height:18px"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+};
+
+// ══ 音效引擎 ══════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let currentMasterGain = null;
+function getAudioCtx() { if (!audioCtx) audioCtx = new AudioCtx(); return audioCtx; }
+function stopCurrentSound() {
+  if (currentMasterGain) {
+    try { currentMasterGain.gain.setValueAtTime(0, getAudioCtx().currentTime); } catch(e) {
+      console.warn('Failed to stop current sound gain:', e);
+    }
+    currentMasterGain = null;
+  }
+  ['snd-westminster', 'snd-countdown-mp3'].forEach(id => {
+    const a = document.getElementById(id);
+    if (a && !a.paused) { a.pause(); a.currentTime = 0; }
+  });
+}
+function playSound(type) {
+  if (type === 'none') return;
+  stopCurrentSound();
+  try {
+    const ctx = getAudioCtx(), t = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    currentMasterGain = masterGain;
+    masterGain.gain.value = 1.0;
+    masterGain.connect(ctx.destination);
+    const osc = (freq, type2, start, dur, gainStart, dest) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(dest||masterGain);
+      o.type = type2||'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(gainStart||0.3, t+start);
+      g.gain.exponentialRampToValueAtTime(0.001, t+start+dur);
+      o.start(t+start); o.stop(t+start+dur+0.05);
+      return {o,g};
+    };
+    const noise = (start, dur, gain) => {
+      const buf = ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1);
+      const src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf; src.connect(g); g.connect(masterGain);
+      g.gain.setValueAtTime(gain||0.15, t+start);
+      g.gain.exponentialRampToValueAtTime(0.001, t+start+dur);
+      src.start(t+start); src.stop(t+start+dur+0.05);
+    };
+
+    // FM 钟铃合成辅助
+    const fmBell = (carrierHz, ratio, modIdx, start, dur, gain) => {
+      const car = ctx.createOscillator(), mod = ctx.createOscillator();
+      const modG = ctx.createGain(), mainG = ctx.createGain();
+      mod.frequency.value = carrierHz * ratio;
+      car.frequency.value = carrierHz;
+      modG.gain.setValueAtTime(carrierHz * modIdx, t+start);
+      modG.gain.exponentialRampToValueAtTime(0.001, t+start+dur);
+      mainG.gain.setValueAtTime(gain, t+start);
+      mainG.gain.exponentialRampToValueAtTime(0.001, t+start+dur);
+      mod.connect(modG); modG.connect(car.frequency);
+      car.connect(mainG); mainG.connect(masterGain);
+      mod.start(t+start); mod.stop(t+start+dur+.05);
+      car.start(t+start); car.stop(t+start+dur+.05);
+    };
+
+    switch(type) {
+      case 'zen-bell':
+        // 禅钟：FM合成，深沉悠长，逐渐消散
+        fmBell(220, 3.5, 8, 0,   3.5, 0.55);
+        fmBell(330, 3.5, 6, 0.5, 3.0, 0.30);
+        fmBell(440, 3.5, 4, 1.1, 2.5, 0.18); break;
+
+      case 'marimba':
+        // 木琴：C大调琶音，加高次谐波模拟共鸣腔
+        [523,659,784,1047].forEach((f,i)=>{
+          const d=i*.22;
+          osc(f,   'sine', d, .7, .38);
+          osc(f*4, 'sine', d, .12,.06);  // 木腔谐波
+        }); break;
+
+      case 'crystal':
+        // 水晶音：高频纯正弦，错落叠入，如玻璃杯共鸣
+        [[2093,.22],[1760,.32],[2637,.15],[1397,.28]].forEach(([f,gv],i)=>{
+          osc(f,'sine', i*.28+.08, 2.0, gv);
+        }); break;
+
+      case 'piano':
+        // 钢琴提示：多谐波叠加模拟钢琴音色，C和弦
+        [[523,1],[659,.6],[784,.4],[1047,.25]].forEach(([f,w],i)=>{
+          const d=i*.08;
+          osc(f,    'sine',     d, 1.8, w*.38);
+          osc(f*2,  'triangle', d, 1.0, w*.10);
+          osc(f*3,  'sine',     d, 0.6, w*.05);
+        }); break;
+
+      case 'music-box':
+        // 音乐盒：小星星前4小节，高频轻盈
+        [523,523,784,784,880,880,784,
+         659,659,523].forEach((f,i)=>{
+          osc(f*2,'sine',i*.2,.18,.28);
+          osc(f*4,'sine',i*.2,.08,.05);
+        }); break;
+
+      case 'morning':
+        // 清晨提示：三度跳跃上升，轻快愉悦
+        [523,659,784,523,659,1047].forEach((f,i)=>{
+          const d=[0,.14,.28,.55,.70,.88][i];
+          osc(f,'sine',d,.22,.32);
+          if(i===5) osc(f,'sine',d+.3,.5,.22); // 末音延长
+        }); break;
+
+      case 'laopo':
+        // 做我老婆好不好：旋律音符 (G A B B B A G A)
+        {
+          const melody = [
+            [392, .30], [440, .30], [494, .30], [494, .30],
+            [494, .30], [440, .30], [392, .30], [440, .55],
+          ];
+          let pos = 0;
+          melody.forEach(([f, dur]) => {
+            osc(f,     'sine',     pos, dur + 0.15, 0.35);
+            osc(f * 2, 'triangle', pos, dur * 0.6,  0.08);
+            osc(f * 3, 'sine',     pos, dur * 0.3,  0.03);
+            pos += dur;
+          });
+        } break;
+
+      case 'westminster': {
+        const a = document.getElementById('snd-westminster');
+        if (a) { 
+          a.currentTime = 0; 
+          a.play().catch((e) => console.warn('Failed to play westminster sound:', e));
+        }
+      } break;
+
+      case 'countdown-mp3': {
+        const a = document.getElementById('snd-countdown-mp3');
+        if (a) { 
+          a.currentTime = 0; 
+          a.play().catch((e) => console.warn('Failed to play countdown sound:', e));
+        }
+      } break;
+    }
+  } catch(e) {
+    console.warn('Failed to play sound:', type, e);
+  }
+}
+
+// ══ 配置 ═════════════════════════════════════
+function loadCfg() {
+  return {
+    work:    (parseInt(safeGetItem('cfg_work'))     || 25) * 60,
+    short:   (parseInt(safeGetItem('cfg_short'))    ||  5) * 60,
+    long:    (parseInt(safeGetItem('cfg_long'))     || 15) * 60,
+    sessionsPerLong: parseInt(safeGetItem('cfg_sessions')) || 4,
+    sound:   safeGetItem('cfg_sound')  || 'zen-bell',
+    theme:   safeGetItem('cfg_theme')  || 'system',
+    lang:    safeGetItem('cfg_lang')   || 'zh',
+  };
+}
+let CFG = loadCfg();
+let lang = CFG.lang;
+function T() { return I18N[lang]; }
+
+// ══ 主题 ══════════════════════════════════════
+const THEME_ORDER = ['system', 'light', 'dark'];
+const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(t) {
+  const isDark = t === 'dark' || (t === 'system' && sysDark.matches);
+  document.documentElement.setAttribute('data-theme', isDark ? '' : 'light');
+  document.getElementById('btnTheme').innerHTML = THEME_ICONS[t];
+}
+applyTheme(CFG.theme);
+sysDark.addEventListener('change', () => { if (CFG.theme === 'system') applyTheme('system'); });
+
+function cycleTheme() {
+  const idx = THEME_ORDER.indexOf(CFG.theme);
+  CFG.theme = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
+  safeSetItem('cfg_theme', CFG.theme);
+  applyTheme(CFG.theme);
+}
+
+// ══ 语言 ══════════════════════════════════════
+function toggleLang() {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  safeSetItem('cfg_lang', lang);
+  CFG.lang = lang;
+  applyLang();
+}
+
+function applyLang() {
+  const t = T();
+  document.getElementById('appTitle').textContent     = t.appTitle;
+  document.getElementById('tabWork').textContent       = t.tabWork;
+  document.getElementById('tabShort').textContent      = t.tabShort;
+  document.getElementById('tabLong').textContent       = t.tabLong;
+  document.getElementById('tasksTitle').textContent    = t.tasksTitle;
+  document.getElementById('tfName').placeholder        = t.taskPlaceholder;
+  document.getElementById('btnAddTaskLabel').textContent = t.taskAddTask;
+  document.getElementById('btnAddNote').textContent    = t.taskAddNote;
+  document.getElementById('btnAddProject').textContent = t.taskAddProject;
+  document.getElementById('tfNote').placeholder        = t.taskNotePlaceholder;
+  document.getElementById('tfProject').placeholder     = t.taskProjectPlaceholder;
+  document.getElementById('tfLabelEst').textContent    = t.taskEstLabel;
+  document.getElementById('tfCancelBtn').textContent   = t.tfCancel;
+  document.getElementById('tfSaveBtn').textContent     = t.tfSave;
+  document.getElementById('settingsTitle').textContent = t.settingsTitle;
+  document.getElementById('lblWork').textContent       = t.lblWork;
+  document.getElementById('lblShort').textContent      = t.lblShort;
+  document.getElementById('lblLong').textContent       = t.lblLong;
+  document.getElementById('lblSessions').textContent   = t.lblSessions;
+  document.getElementById('lblSound').textContent      = t.lblSoundSel;
+  const _lp = document.getElementById('lblPreview'); if (_lp) _lp.textContent = t.lblPreview;
+  document.getElementById('lblRepeat').textContent     = t.lblRepeat;
+  const _lv = document.getElementById('lblVolume');  if (_lv) _lv.textContent = t.lblVolume;
+  document.getElementById('lblNotif').textContent      = t.lblNotif;
+  document.getElementById('lblReset').textContent      = t.lblReset;
+  // 下拉选项文字
+  document.querySelectorAll('[data-i18n-opt]').forEach(el => {
+    el.textContent = t[el.dataset.i18nOpt] || el.textContent;
+  });
+  // 时间显示刷新
+  const wv = parseInt(document.getElementById('slWork').value);
+  const sv = parseInt(document.getElementById('slShort').value);
+  const lv = parseInt(document.getElementById('slLong').value);
+  if (wv) document.getElementById('dispWork').textContent  = minsToDisp(wv);
+  if (sv) document.getElementById('dispShort').textContent = minsToDisp(sv);
+  if (lv) document.getElementById('dispLong').textContent  = minsToDisp(lv);
+  // 选择器文字
+  document.getElementById('tpDoneBtn').textContent = t.tpDone;
+  document.getElementById('tpUnitH').textContent   = t.tpUnitH;
+  document.getElementById('tpUnitM').textContent   = t.tpUnitM;
+  document.getElementById('tpInputUnit').textContent = t.tpUnitM;
+  document.getElementById('btnSettings').title = t.btnSettings;
+  document.getElementById('btnLang').title     = t.btnLang;
+  document.getElementById('btnTheme').title    = t.btnTheme;
+  document.getElementById('btnReset').setAttribute('data-tip', t.resetTip);
+  const lblAS = document.getElementById('lblAutoStart');
+  if (lblAS) lblAS.textContent = t.lblAutoStart;
+  updateNotifBtn();
+  updateNotifStatus();
+  document.title = t.appTitle.replace('🍅 ', '') + ' 🍅';
+  render(); renderTasks();
+}
+
+// ══ 状态 ══════════════════════════════════════
+let mode = 'work', secsLeft = CFG.work, total = CFG.work;
+let running = false, completed = 0, timer = null;
+
+// ══ 安全的localStorage读取函数 ═════════════════
+function safeGetJSON(key, defaultValue) {
+  try {
+    const value = localStorage.getItem(key);
+    if (value === null) return defaultValue;
+    return JSON.parse(value);
+  } catch (e) {
+    console.warn('Failed to parse localStorage key:', key, e);
+    return defaultValue;
+  }
+}
+
+function safeGetItem(key, defaultValue = null) {
+  try {
+    const value = localStorage.getItem(key);
+    return value !== null ? value : defaultValue;
+  } catch (e) {
+    console.warn('Failed to get localStorage key:', key, e);
+    return defaultValue;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn('Failed to set localStorage key:', key, e);
+  }
+}
+
+// ══ 任务 ══════════════════════════════════════
+let tasks = safeGetJSON('tasks', []);
+let activeTaskId = safeGetItem('activeTaskId', null);
+let editTaskId = null;
+let openMenuTaskId = null;
+function saveTasks() {
+  safeSetItem('tasks', JSON.stringify(tasks));
+  safeSetItem('activeTaskId', activeTaskId || '');
+}
+
+// ══ DOM ═══════════════════════════════════════
+const ring        = document.getElementById('ring');
+const timeDisplay = document.getElementById('timeDisplay');
+const btnStart    = document.getElementById('btnStart');
+const toast       = document.getElementById('toast');
+const tabs        = document.querySelectorAll('.tab');
+const taskList    = document.getElementById('taskList');
+
+const CIRCUM = 2 * Math.PI * 108;
+ring.style.strokeDasharray = CIRCUM;
+
+
+// ══ 渲染 ══════════════════════════════════════
+const COLORS = { work: '#E74C3C', short: '#27AE60', long: '#2980B9' };
+
+function render() {
+  const color = COLORS[mode];
+  document.body.style.setProperty('--mode', color);
+  const m = String(Math.floor(secsLeft/60)).padStart(2,'0');
+  const s = String(secsLeft%60).padStart(2,'0');
+  timeDisplay.textContent = `${m}:${s}`;
+  document.title = `${m}:${s} ${T().appTitle}`;
+  ring.style.strokeDashoffset = CIRCUM * (1 - (total > 0 ? secsLeft/total : 0));
+  btnStart.textContent = running ? '⏸' : '▶';
+  btnStart.classList.toggle('running', running);
+  document.querySelector('.timer-wrap').classList.toggle('tp-running', running);
+  document.querySelector('.tabs').classList.toggle('tp-running', running);
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  const atLabel = document.getElementById('activeTaskLabel');
+  if (atLabel) {
+    const at = activeTaskId ? tasks.find(t => t.id === activeTaskId && !t.done) : null;
+    atLabel.textContent = at ? at.name : '';
+  }
+}
+
+// ══ 计时器控制 ════════════════════════════════
+function switchMode(m) { stopTimer(); mode=m; total=CFG[m]; secsLeft=total; render(); }
+let timerEndTime = 0;    // 用真实时间戳代替逐秒递减
+let lastFinishedMode = 'work'; // 供 visibilitychange 补触发弹窗
+
+function toggle() { running ? stopTimer() : startTimer(); }
+function startTimer() {
+  dismissAlarm();
+  try { getAudioCtx().resume(); } catch(e) {
+    console.warn('Failed to resume audio context:', e);
+  }
+  running = true;
+  timerEndTime = Date.now() + secsLeft * 1000;
+  requestWakeLock(); // 计时开始即申请屏幕常亮
+  render();
+  timer = setInterval(timerTick, 500); // 500ms 轮询，误差更小
+}
+function timerTick() {
+  if (!running) return;
+  const prev = secsLeft;
+  secsLeft = Math.max(0, Math.round((timerEndTime - Date.now()) / 1000));
+  render();
+  if (secsLeft <= 0) { clearInterval(timer); running = false; onComplete(); }
+}
+function stopTimer()  { clearInterval(timer); running = false; releaseWakeLock(); render(); }
+function resetTimer() {
+  stopTimer();
+  total = CFG[mode]; secsLeft = total;
+  render();
+}
+
+// 亮屏/切回前台时立即追上正确剩余时间
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (running) {
+    // 计时进行中：立即重算，处理熄屏期间被冻结的 interval
+    setTimeout(timerTick, 50);
+  } else if (timerEndTime && Date.now() >= timerEndTime) {
+    // 计时已结束，但弹窗可能因屏幕熄灭期间 JS 出错而未显示
+    const alarmVisible = document.getElementById('alarmScreen').classList.contains('show');
+    if (!alarmVisible) {
+      showAlarmScreen(lastFinishedMode);
+      try { playSound(CFG.sound); } catch(e) {
+        console.warn('Failed to play sound on visibility change:', e);
+      }
+    }
+  }
+});
+
+// ── 任务图标 SVG ─────────────────────────────
+const TRASH_SVG  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;width:14px;height:14px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+
+// ── 通知开关 ────────────────────────────────
+let notifEnabled = safeGetItem('cfg_notif') !== '0';
+let autoStart = safeGetItem('cfg_autostart') === '1';
+let pendingAutoStart = false;
+
+const BELL_ON  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;pointer-events:none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
+const BELL_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;pointer-events:none"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+function updateNotifBtn() {
+  const btn = document.getElementById('btnNotif');
+  const supported = 'Notification' in window;
+  const perm = supported ? Notification.permission : 'unsupported';
+  const effectiveOn = notifEnabled && perm === 'granted';
+  const blocked     = notifEnabled && (perm === 'denied' || perm === 'unsupported');
+  btn.innerHTML = effectiveOn ? BELL_ON : BELL_OFF;
+  btn.style.color = effectiveOn ? 'var(--mode)' : (blocked ? '#E74C3C' : '');
+  btn.setAttribute('data-tip', notifEnabled ? T().notifTipOff : T().notifTipOn);
+
+  const hint = document.getElementById('mainNotifHint');
+  if (hint) {
+    if (perm === 'unsupported') {
+      hint.textContent = T().notifUnsupported;
+      hint.className = 'main-notif-hint warn';
+    } else if (perm === 'denied') {
+      hint.textContent = T().notifHintDenied;
+      hint.className = 'main-notif-hint err';
+    } else if (effectiveOn) {
+      hint.textContent = T().notifOn;
+      hint.className = 'main-notif-hint on';
+    } else {
+      hint.textContent = T().notifOff;
+      hint.className = 'main-notif-hint';
+    }
+  }
+}
+
+function updateNotifStatus() {
+  const el = document.getElementById('notifStatus');
+  if (!el) return;
+  if (!('Notification' in window)) {
+    el.textContent = T().notifUnsupported;
+    el.className = 'sp-notif-status warn'; return;
+  }
+  const perm = Notification.permission;
+  if (perm === 'granted') {
+    el.textContent = T().notifGranted;
+    el.className = 'sp-notif-status granted';
+  } else if (perm === 'denied') {
+    el.textContent = T().notifDenied;
+    el.className = 'sp-notif-status denied';
+  } else {
+    el.textContent = T().notifDefault;
+    el.className = 'sp-notif-status';
+  }
+}
+
+// 统一的权限申请 + 状态更新入口
+async function requestNotif(wantOn) {
+  if (wantOn) {
+    if (!('Notification' in window)) {
+      showToast(T().notifUnsupported);
+      const chk = document.getElementById('chkNotif');
+      if (chk) chk.checked = false;
+      updateNotifStatus(); return;
+    }
+    if (Notification.permission === 'denied') {
+      showToast(T().notifBlocked);
+      const chk = document.getElementById('chkNotif');
+      if (chk) chk.checked = false;
+      notifEnabled = false;
+      updateNotifBtn(); updateNotifStatus(); return;
+    }
+    if (Notification.permission === 'default') {
+      const result = await Notification.requestPermission();
+      if (result !== 'granted') {
+        showToast(result === 'denied' ? T().notifBlocked : T().notifOff);
+        notifEnabled = false;
+        const chk = document.getElementById('chkNotif');
+        if (chk) chk.checked = false;
+        localStorage.setItem('cfg_notif', '0');
+        updateNotifBtn(); updateNotifStatus(); return;
+      }
+    }
+    notifEnabled = true;
+    showToast(T().notifOn);
+  } else {
+    notifEnabled = false;
+  }
+  safeSetItem('cfg_notif', notifEnabled ? '1' : '0');
+  updateNotifBtn(); updateNotifStatus();
+}
+
+async function toggleNotif() {
+  await requestNotif(!notifEnabled);
+}
+
+let repeatTimer = null;
+let alarmAutoStopTimer = null;
+let wakeLockObj = null;
+function stopRepeatSound() {
+  if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+  if (alarmAutoStopTimer) { clearTimeout(alarmAutoStopTimer); alarmAutoStopTimer = null; }
+}
+
+// 尝试唤醒屏幕
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) wakeLockObj = await navigator.wakeLock.request('screen');
+  } catch(e) {
+    console.warn('Failed to request wake lock:', e);
+  }
+}
+function releaseWakeLock() {
+  if (wakeLockObj) {
+    try {
+      wakeLockObj.release();
+    } catch(e) {
+      console.warn('Failed to release wake lock:', e);
+    }
+    wakeLockObj = null;
+  }
+}
+
+// 显示响铃全屏界面
+let snoozeTimer = null;
+function showAlarmScreen(finishedMode) {
+  const t = T();
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('alarmTime').textContent = `${hh}:${mm}`;
+
+  // 根据结束的模式显示不同内容和颜色
+  const alarmMap = {
+    work:  { tag: t.alarmTagWork,  label: t.alarmLabelWork,  sub: t.alarmSubWork,  color: COLORS.work },
+    short: { tag: t.alarmTagShort, label: t.alarmLabelShort, sub: t.alarmSubShort, color: COLORS.short },
+    long:  { tag: t.alarmTagLong,  label: t.alarmLabelLong,  sub: t.alarmSubLong,  color: COLORS.long },
+  };
+  const info = alarmMap[finishedMode];
+  const c = info.color;
+
+  // 闹钟图标颜色
+  document.getElementById('alarmClockIcon').style.background = c;
+  document.getElementById('alarmClockIcon').querySelector('svg').style.stroke = '#fff';
+
+  // 模式标签
+  const tag = document.getElementById('alarmModeTag');
+  tag.textContent = info.tag;
+  tag.style.background = c + '22';
+  tag.style.color = c;
+
+  // 文案
+  document.getElementById('alarmLabel').textContent = info.label;
+  document.getElementById('alarmSub').textContent = info.sub;
+
+  // 停止按钮颜色
+  document.getElementById('alarmStopCircle').style.background = c;
+
+  // 按钮文字
+  document.getElementById('alarmStopText').textContent = t.alarmStop;
+  document.getElementById('alarmSnoozeText').textContent = t.alarmSnooze;
+  document.getElementById('alarmHintText').textContent = t.alarmHint;
+
+  document.getElementById('alarmScreen').classList.add('show');
+
+  // 唤醒屏幕 + 震动
+  requestWakeLock();
+  if (navigator.vibrate) navigator.vibrate([300, 200, 300, 200, 300]);
+}
+
+// 稍后提醒（暂停响铃，1分钟后再响）
+function snoozeAlarm() {
+  stopRepeatSound();
+  stopCurrentSound();
+  if (navigator.vibrate) navigator.vibrate(0);
+  document.getElementById('alarmScreen').classList.remove('show');
+  if (snoozeTimer) clearTimeout(snoozeTimer);
+  snoozeTimer = setTimeout(() => {
+    playSound(CFG.sound);
+    const shouldRepeat = document.getElementById('chkRepeat').checked;
+    if (shouldRepeat && CFG.sound !== 'none') {
+      repeatTimer = setInterval(() => playSound(CFG.sound), 4000);
+      alarmAutoStopTimer = setTimeout(() => dismissAlarm(), 300000);
+    }
+    // 重新获取当前时间显示
+    const now = new Date();
+    document.getElementById('alarmTime').textContent =
+      String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('alarmScreen').classList.add('show');
+    requestWakeLock();
+    if (navigator.vibrate) navigator.vibrate([300, 200, 300, 200, 300]);
+  }, 60000);
+  showToast(lang === 'zh' ? '⏰ 1 分钟后再次提醒' : '⏰ Snooze: 1 min');
+}
+
+// 关闭响铃界面
+function dismissAlarm() {
+  stopRepeatSound();
+  stopCurrentSound();
+  releaseWakeLock();
+  if (navigator.vibrate) navigator.vibrate(0);
+  if (snoozeTimer) { clearTimeout(snoozeTimer); snoozeTimer = null; }
+  document.getElementById('alarmScreen').classList.remove('show');
+  if (pendingAutoStart) { pendingAutoStart = false; setTimeout(() => { if (!running) startTimer(); }, 600); }
+}
+
+// 上滑手势关闭响铃
+(function() {
+  const el = document.getElementById('alarmScreen');
+  let startY = 0, startTime = 0;
+  el.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startTime = Date.now();
+  }, { passive: true });
+  el.addEventListener('touchend', e => {
+    const dy = startY - e.changedTouches[0].clientY;
+    const dt = Date.now() - startTime;
+    // 上滑超过 80px 且在 500ms 内完成
+    if (dy > 80 && dt < 500) dismissAlarm();
+  }, { passive: true });
+})();
+
+function onComplete() {
+  const finishedMode = mode;
+  lastFinishedMode = finishedMode; // 供 visibilitychange 补触发用
+
+  // 计算下一模式和统计（不依赖音频，先算好）
+  let msg, next;
+  if (mode === 'work') {
+    completed++;
+    if (activeTaskId) {
+      const t = tasks.find(t => t.id === activeTaskId);
+      if (t && !t.done) { t.used++; saveTasks(); renderTasks(); }
+    }
+    next = (completed % CFG.sessionsPerLong === 0) ? 'long' : 'short';
+    msg = next === 'long' ? T().toastLong(completed) : T().toastShort(completed);
+  } else {
+    next = 'work'; msg = T().toastBack;
+  }
+
+  if (autoStart) pendingAutoStart = true;
+  switchMode(next);
+
+  // ★ 优先显示全屏响铃界面，不依赖音频是否成功
+  showAlarmScreen(finishedMode);
+
+  // 音效和通知放在弹窗之后，失败了也不影响弹窗
+  try {
+    playSound(CFG.sound);
+    const shouldRepeat = document.getElementById('chkRepeat').checked;
+    if (shouldRepeat && CFG.sound !== 'none') {
+      stopRepeatSound();
+      repeatTimer = setInterval(() => playSound(CFG.sound), 4000);
+      alarmAutoStopTimer = setTimeout(() => dismissAlarm(), 300000);
+    }
+    if (notifEnabled && Notification.permission === 'granted') new Notification(T().notifTitle, { body: msg });
+  } catch(e) {
+    console.warn('Failed to play sound or show notification:', e);
+  }
+}
+
+// ══ 任务列表 ══════════════════════════════════
+function openAddTask() {
+  document.getElementById('taskFormCard').style.display = '';
+  document.getElementById('btnOpenAddTask').style.display = 'none';
+  const ta = document.getElementById('tfName');
+  ta.style.height = 'auto';
+  ta.focus();
+}
+function closeAddTask() {
+  document.getElementById('taskFormCard').style.display = 'none';
+  document.getElementById('btnOpenAddTask').style.display = '';
+  document.getElementById('tfName').value = '';
+  document.getElementById('tfEst').value = '1';
+  const tfNote = document.getElementById('tfNote');
+  tfNote.value = ''; tfNote.style.display = 'none';
+  const tfProjectRow = document.getElementById('tfProjectRow');
+  tfProjectRow.style.display = 'none';
+  document.getElementById('tfProject').value = '';
+  const btnNote = document.getElementById('btnAddNote');
+  const btnProj = document.getElementById('btnAddProject');
+  if (btnNote) btnNote.style.display = '';
+  if (btnProj) btnProj.style.display = '';
+}
+function stepEst(delta) {
+  const el = document.getElementById('tfEst');
+  el.value = Math.max(1, Math.min(20, (parseInt(el.value) || 1) + delta));
+}
+function stepEditEst(id, delta) {
+  const el = document.getElementById('editEst_'+id);
+  if (el) el.value = Math.max(1, Math.min(20, (parseInt(el.value) || 1) + delta));
+}
+function stepEditUsed(id, delta) {
+  const el = document.getElementById('editUsed_'+id);
+  const est = parseInt(document.getElementById('editEst_'+id)?.value || 99);
+  if (el) el.value = Math.max(0, Math.min(est, (parseInt(el.value) || 0) + delta));
+}
+function showTfNote() {
+  document.getElementById('tfNote').style.display = '';
+  document.getElementById('btnAddNote').style.display = 'none';
+}
+function showTfProject() {
+  document.getElementById('tfProjectRow').style.display = '';
+  document.getElementById('btnAddProject').style.display = 'none';
+}
+function showTaskMenu(id) {
+  if (openMenuTaskId === id) { closeAllMenus(); return; }
+  closeAllMenus();
+  openMenuTaskId = id;
+  const popup = document.getElementById('menu_'+id);
+  if (popup) popup.style.display = '';
+}
+function closeAllMenus() {
+  if (openMenuTaskId) {
+    const popup = document.getElementById('menu_'+openMenuTaskId);
+    if (popup) popup.style.display = 'none';
+    openMenuTaskId = null;
+  }
+}
+function addTask() {
+  const nameEl = document.getElementById('tfName');
+  const name = nameEl.value.replace(/^\n+|\n+$/g, '');
+  if (!name.trim()) { nameEl.focus(); return; }
+  const est = Math.max(1, Math.min(20, parseInt(document.getElementById('tfEst').value) || 1));
+  const note = document.getElementById('tfNote').value.trim();
+  const project = document.getElementById('tfProject').value.trim();
+  tasks.push({ id: Date.now().toString(), name, est, used: 0, done: false, note, project });
+  closeAddTask(); saveTasks(); renderTasks();
+}
+function toggleTask(id) {
+  const t = tasks.find(t => t.id === id); if (!t) return;
+  t.done = !t.done;
+  if (t.done && activeTaskId === id) activeTaskId = null;
+  saveTasks(); renderTasks();
+}
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  if (activeTaskId === id) activeTaskId = null;
+  if (editTaskId === id) editTaskId = null;
+  closeAllMenus(); saveTasks(); renderTasks();
+}
+function setActiveTask(id) {
+  activeTaskId = (activeTaskId === id) ? null : id;
+  closeAllMenus(); saveTasks(); renderTasks();
+}
+function saveEditTask(id) {
+  const t = tasks.find(t => t.id === id); if (!t) return;
+  const nEl = document.getElementById('editName_'+id);
+  const eEl = document.getElementById('editEst_'+id);
+  const uEl = document.getElementById('editUsed_'+id);
+  const noteEl = document.getElementById('editNote_'+id);
+  const projEl = document.getElementById('editProject_'+id);
+  if (nEl && nEl.value.trim()) t.name = nEl.value.replace(/^\n+|\n+$/g, '');
+  if (eEl) t.est  = Math.max(1, Math.min(20, parseInt(eEl.value) || 1));
+  if (uEl) t.used = Math.max(0, Math.min(t.est, parseInt(uEl.value) || 0));
+  if (noteEl) t.note = noteEl.value.trim();
+  if (projEl) t.project = projEl.value.trim();
+  editTaskId = null; saveTasks(); renderTasks();
+}
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function renderTasks() {
+  const atLabel = document.getElementById('activeTaskLabel');
+  if (atLabel) {
+    const at = activeTaskId ? tasks.find(t => t.id === activeTaskId && !t.done) : null;
+    atLabel.textContent = at ? at.name : '';
+  }
+  if (!tasks.length) {
+    taskList.innerHTML = '';
+    return;
+  }
+  const tr = T();
+  taskList.innerHTML = tasks.map(t => {
+    const isActive = t.id === activeTaskId;
+    const note = t.note || '';
+    const project = t.project || '';
+    const cls = `task-item${isActive?' active-task':''}${t.done?' done-task':''}`;
+    const check = `<div class="task-check" data-check="${t.id}"><span class="task-check-icon">✓</span></div>`;
+    const projTag = project ? `<span class="task-project-tag">${escHtml(project)}</span>` : '';
+    const countHtml = `<span class="task-count"><span class="tc-used">${t.used}</span>/${t.est}</span>`;
+    const menuBtn = `<button class="task-menu-btn" data-edit="${t.id}"></button>`;
+
+    if (t.id === editTaskId) {
+      return `<div class="task-form-card task-item${isActive?' active-task':''}${t.done?' done-task':''}" data-id="${t.id}">
+        <textarea class="tf-edit-title" id="editName_${t.id}" rows="1"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+        >${escHtml(t.name)}</textarea>
+        <div class="tf-meta-row">
+          <span class="tf-meta-label">${tr.taskActEst}</span>
+          <div class="tf-stepper">
+            <input class="tf-num" id="editUsed_${t.id}" type="number" value="${t.used}" min="0">
+            <span class="tf-stepper-sep">/</span>
+            <input class="tf-num" id="editEst_${t.id}" type="number" value="${t.est}" min="1" max="20">
+            <div class="tf-arrows">
+              <button class="tf-arrow" onclick="stepEditEst('${t.id}',1)">▲</button>
+              <button class="tf-arrow" onclick="stepEditEst('${t.id}',-1)">▼</button>
+            </div>
+          </div>
+        </div>
+        <textarea class="tf-note" id="editNote_${t.id}" rows="3" placeholder="${tr.taskNotePlaceholder}"
+        >${escHtml(note)}</textarea>
+        <div class="tf-project-row">
+          <input class="tf-project-input" id="editProject_${t.id}" value="${escHtml(project)}"
+            placeholder="${tr.taskProjectPlaceholder}">
+        </div>
+        <div class="tf-edit-actions">
+          <button class="tf-del" data-del="${t.id}">🗑</button>
+          <div class="tf-edit-right">
+            <button class="tf-cancel" data-cancel="${t.id}">${tr.tfCancel}</button>
+            <button class="tf-save" data-save="${t.id}">${tr.tfSave}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="${cls}" data-id="${t.id}">
+      <div class="task-item-row">
+        ${check}
+        <div class="task-name">${escHtml(t.name)}</div>
+        ${countHtml}
+        ${menuBtn}
+      </div>
+      ${(project || note) ? `<div class="task-meta-row">
+        ${project ? `<div class="task-project-preview">${escHtml(project)}</div>` : ''}
+        ${note ? `<div class="task-note-preview">${escHtml(note)}</div>` : ''}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  taskList.querySelectorAll('[data-check]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); toggleTask(el.dataset.check); }));
+  taskList.querySelectorAll('[data-del]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); deleteTask(el.dataset.del); }));
+  taskList.querySelectorAll('[data-save]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); saveEditTask(el.dataset.save); }));
+  taskList.querySelectorAll('[data-cancel]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); editTaskId = null; renderTasks(); }));
+  taskList.querySelectorAll('[data-edit]').forEach(el =>
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.dataset.edit;
+      editTaskId = (editTaskId === id) ? null : id;
+      renderTasks();
+    }));
+  taskList.querySelectorAll('[data-target]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); setActiveTask(el.dataset.target); }));
+
+  if (editTaskId) {
+    const ta = document.getElementById('editName_' + editTaskId);
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+    }
+  }
+}
+
+// ══ 时间滚轮选择器 ════════════════════════════
+const TP_H = 44; // 每项高度px
+const TP_PAD = 2; // 上下各填充项数
+let tpTarget = null;
+
+function minsToDisp(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60, t = T();
+  if (h === 0) return t.tpMinDisp(m);
+  if (m === 0) return t.tpHrDisp(h);
+  return t.tpHrMinDisp(h, m);
+}
+
+function buildTPCol(el, count, selIdx) {
+  el.scrollTop = 0;          // 先归零，清除残留位置
+  el.innerHTML = '';
+  for (let i = 0; i < TP_PAD; i++) el.insertAdjacentHTML('beforeend', '<div class="tp-pad"></div>');
+  for (let i = 0; i < count; i++) {
+    el.insertAdjacentHTML('beforeend',
+      `<div class="tp-item${i === selIdx ? ' tp-selected' : ''}">${String(i).padStart(2,'0')}</div>`);
+  }
+  for (let i = 0; i < TP_PAD; i++) el.insertAdjacentHTML('beforeend', '<div class="tp-pad"></div>');
+  // 延迟确保 overlay 布局稳定后再定位
+  setTimeout(() => {
+    el.scrollTop = selIdx * TP_H;
+    refreshTPHighlight(el);
+  }, 60);
+}
+
+function refreshTPHighlight(col) {
+  const idx = Math.round(col.scrollTop / TP_H);
+  col.querySelectorAll('.tp-item').forEach((el, i) => {
+    el.classList.toggle('tp-selected', i === idx);
+  });
+  // 同步直接输入框（用户正在输入时不覆盖）
+  const inp = document.getElementById('tpDirectInput');
+  if (inp && document.activeElement !== inp) {
+    const hCol = document.getElementById('tpHours');
+    const mCol = document.getElementById('tpMins');
+    if (hCol && mCol) {
+      const total = Math.round(hCol.scrollTop / TP_H) * 60 + Math.round(mCol.scrollTop / TP_H);
+      if (total > 0) inp.value = total;
+    }
+  }
+}
+
+function syncTPFromInput(val) {
+  const v = Math.min(240, Math.max(1, parseInt(val) || 1));
+  const h = Math.min(1, Math.floor(v / 60));
+  const m = Math.min(59, v - h * 60);
+  const hCol = document.getElementById('tpHours');
+  const mCol = document.getElementById('tpMins');
+  if (hCol) { hCol.scrollTop = h * TP_H; refreshTPHighlight(hCol); }
+  if (mCol) { mCol.scrollTop = m * TP_H; refreshTPHighlight(mCol); }
+}
+
+function openTimePicker(target) {
+  tpTarget = target;
+  const idMap = { work: 'slWork', short: 'slShort', long: 'slLong' };
+  const totalMins = parseInt(document.getElementById(idMap[target]).value) || 1;
+  const h = Math.floor(totalMins / 60), m = totalMins % 60;
+  const titleMap = { work: T().tpTitleWork, short: T().tpTitleShort, long: T().tpTitleLong };
+  document.getElementById('tpTitle').textContent = titleMap[target];
+  document.getElementById('tpUnitH').textContent = T().tpUnitH;
+  document.getElementById('tpUnitM').textContent = T().tpUnitM;
+  document.getElementById('tpDoneBtn').textContent = T().tpDone;
+  const hCol = document.getElementById('tpHours');
+  const mCol = document.getElementById('tpMins');
+  // 先打开 overlay，等布局稳定后再构建列
+  const tpOverlay = document.getElementById('timePickerOverlay');
+  tpOverlay.style.display = 'flex';
+  tpOverlay.classList.add('open');
+  document.getElementById('tpDirectInput').value = totalMins;
+  // 防止打开时的点击事件立即触发背景关闭
+  tpOverlay.dataset.lock = '1';
+  setTimeout(() => delete tpOverlay.dataset.lock, 300);
+  hCol.onscroll = () => refreshTPHighlight(hCol);
+  mCol.onscroll = () => refreshTPHighlight(mCol);
+  // 构建列（内部用 setTimeout 定位滚动）
+  buildTPCol(hCol, 2, Math.min(h, 1));   // 0~1 小时
+  buildTPCol(mCol, 60, m);               // 0~59 分钟
+}
+
+function closeTimePicker() {
+  const tpOverlay = document.getElementById('timePickerOverlay');
+  tpOverlay.classList.remove('open');
+  tpOverlay.style.display = 'none';
+}
+
+function confirmTimePicker() {
+  const hCol = document.getElementById('tpHours');
+  const mCol = document.getElementById('tpMins');
+  const h = Math.min(1, Math.max(0, Math.round(hCol.scrollTop / TP_H)));
+  const m = Math.min(59, Math.max(0, Math.round(mCol.scrollTop / TP_H)));
+  let totalMins = h * 60 + m;
+  // 直接输入框优先
+  const inp = document.getElementById('tpDirectInput');
+  if (inp && inp.value.trim()) {
+    const v = parseInt(inp.value);
+    if (!isNaN(v) && v > 0) totalMins = Math.min(240, v);
+  }
+  const minMap = { work: 1, short: 1, long: 1 };
+  totalMins = Math.max(totalMins, minMap[tpTarget] || 1);
+
+  // 更新设置面板的隐藏输入和显示
+  const idMap  = { work: 'slWork',  short: 'slShort',  long: 'slLong' };
+  const dspMap = { work: 'dispWork', short: 'dispShort', long: 'dispLong' };
+  const hi = document.getElementById(idMap[tpTarget]);
+  const di = document.getElementById(dspMap[tpTarget]);
+  if (hi) hi.value = totalMins;
+  if (di) di.textContent = minsToDisp(totalMins);
+
+  // 直接持久化保存
+  const cfgKey = { work: 'cfg_work', short: 'cfg_short', long: 'cfg_long' };
+  safeSetItem(cfgKey[tpTarget], totalMins);
+  CFG = loadCfg(); CFG.lang = lang;
+
+  // 若修改的是当前模式，立即重置计时器
+  if (tpTarget === mode) {
+    stopTimer();
+    total   = CFG[mode];
+    secsLeft = total;
+    render();
+  }
+
+  closeTimePicker();
+}
+
+// 从计时器圆圈点击打开对应模式的时间选择器
+function openTimePickerForMode() {
+  if (running) return;   // 计时中不允许修改
+  openTimePicker(mode);  // mode: 'work' | 'short' | 'long'
+}
+
+// ══ 设置面板 ══════════════════════════════════
+function openSettings() {
+  const wMins = CFG.work / 60, sMins = CFG.short / 60, lMins = CFG.long / 60;
+  document.getElementById('slWork').value   = wMins;
+  document.getElementById('slShort').value  = sMins;
+  document.getElementById('slLong').value   = lMins;
+  document.getElementById('dispWork').textContent  = minsToDisp(wMins);
+  document.getElementById('dispShort').textContent = minsToDisp(sMins);
+  document.getElementById('dispLong').textContent  = minsToDisp(lMins);
+  document.getElementById('slSessions').value = CFG.sessionsPerLong;
+  document.getElementById('soundSelect').value = CFG.sound;
+  document.getElementById('chkRepeat').checked = safeGetItem('cfg_repeat') === '1';
+  // 如果系统权限已被拒绝，强制关闭用户开关
+  if ('Notification' in window && Notification.permission === 'denied') notifEnabled = false;
+  document.getElementById('chkNotif').checked  = notifEnabled;
+  document.getElementById('chkAutoStart').checked = autoStart;
+  updateNotifStatus();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeSettings() { document.getElementById('overlay').classList.remove('open'); }
+
+// 铃声/重复开关 实时自动保存，选择铃声时立即试听
+function autoSaveSound() {
+  const sel = document.getElementById('soundSelect').value;
+  safeSetItem('cfg_sound', sel);
+  CFG.sound = sel;
+  if (sel !== 'none') { 
+    try { getAudioCtx().resume(); } catch(e) {
+      console.warn('Failed to resume audio context for sound preview:', e);
+    } 
+    playSound(sel); 
+  }
+}
+
+function saveRepeat() {
+  safeSetItem('cfg_repeat', document.getElementById('chkRepeat').checked ? '1' : '0');
+}
+
+function resetSettings() {
+  try {
+    ['cfg_work','cfg_short','cfg_long','cfg_sessions','cfg_sound','cfg_repeat','cfg_autostart'].forEach(k => {
+      try { localStorage.removeItem(k); } catch(e) { console.warn('Failed to remove localStorage key:', k, e); }
+    });
+  } catch (e) {
+    console.warn('Failed to reset settings:', e);
+  }
+  autoStart = false;
+  CFG = loadCfg(); CFG.lang = lang;
+  
+  // 更新当前页面的时间到新的配置值
+  total = CFG[mode];
+  secsLeft = total;
+  render();
+  
+  openSettings();
+  showToast(T().toastSaved);
+}
+
+// ══ 浪漫彩蛋 ═════════════════════════════════
+let heartsAnim = null;
+const LOVE_MSGS = [
+  { title: '十二年，感谢有你', poem: '从 520 到 520<br>四千三百八十个日夜<br>你始终是我最温暖的存在<br><br>十二年前你说"我愿意"<br>那一刻起 我便拥有了全世界<br><br>谢谢你 我的桂珍 💍' },
+  { title: '最美的遇见是你', poem: '2014 年的那个夏天<br>我们许下一生的承诺<br><br>十二年 从青涩到成熟<br>从两个人到一个家<br>每一步都有你在身边<br><br>此生最幸运的事 是娶了你 ❤️' },
+  { title: '老婆，辛苦了', poem: '十二年来<br>你操持家庭 照顾一切<br>从不说累 从不抱怨<br><br>我把这些都看在眼里<br>记在心里<br><br>下一个十二年<br>换我来好好宠你 💕' },
+  { title: '致我最爱的人', poem: '有人说 婚姻是爱情的坟墓<br>而我们证明了<br>婚姻是爱情最好的模样<br><br>十二年 丝毫未减的心动<br>依然像第一次牵手那样<br><br>桂珍 做我老婆好不好<br>下辈子 还要你 🥰' },
+  { title: '十二年如一日', poem: '第一年 我们学会了包容<br>第三年 我们有了小家<br>第六年 我们扛过了风雨<br>第十二年 我们依然牵着手<br><br>最浪漫的不是轰轰烈烈<br>而是柴米油盐里<br>你还愿意对我笑 🌸' },
+  { title: '520 × 12', poem: '每年的这一天<br>都想重新跟你告白一次<br><br>第一次是心动<br>第十二次是笃定<br><br>叶桂珍女士<br>感谢你十二年的陪伴<br>我爱你 比昨天多一点<br>比明天少一点 💗' },
+];
+
+function openRomantic() {
+  const overlay = document.getElementById('romanticOverlay');
+  const msg = LOVE_MSGS[Math.floor(Math.random() * LOVE_MSGS.length)];
+  document.getElementById('romanticTitle').textContent = msg.title;
+  document.getElementById('romanticPoem').innerHTML = msg.poem;
+  overlay.classList.add('show');
+  startHeartsAnimation();
+  // 自动加载并播放音乐
+  const audio = document.getElementById('romanticAudio');
+  const btn = document.getElementById('romanticMusicBtn');
+  const icon = document.getElementById('romanticMusicIcon');
+  const txt = document.getElementById('romanticMusicText');
+  // 如果还没加载过，先加载
+  if (audio.preload !== 'auto') {
+    audio.preload = 'auto';
+  }
+  audio.currentTime = 0;
+  audio.play().then(() => {
+    btn.classList.add('playing');
+    icon.textContent = '♪';
+    txt.textContent = '正在播放...';
+  }).catch(() => {
+    // 浏览器可能阻止自动播放，保持按钮为手动播放状态
+    btn.classList.remove('playing');
+    icon.textContent = '▶';
+    txt.textContent = '播放「做我老婆好不好」';
+  });
+}
+
+function toggleRomanticMusic() {
+  const audio = document.getElementById('romanticAudio');
+  const btn = document.getElementById('romanticMusicBtn');
+  const icon = document.getElementById('romanticMusicIcon');
+  const txt = document.getElementById('romanticMusicText');
+  if (audio.paused) {
+    audio.play();
+    btn.classList.add('playing');
+    icon.textContent = '♪';
+    txt.textContent = '正在播放...';
+  } else {
+    audio.pause();
+    btn.classList.remove('playing');
+    icon.textContent = '▶';
+    txt.textContent = '播放「做我老婆好不好」';
+  }
+}
+
+function closeRomantic() {
+  document.getElementById('romanticOverlay').classList.remove('show');
+  if (heartsAnim) { cancelAnimationFrame(heartsAnim); heartsAnim = null; }
+  // 停止音乐
+  const audio = document.getElementById('romanticAudio');
+  const btn = document.getElementById('romanticMusicBtn');
+  const icon = document.getElementById('romanticMusicIcon');
+  const txt = document.getElementById('romanticMusicText');
+  audio.pause(); audio.currentTime = 0;
+  btn.classList.remove('playing');
+  icon.textContent = '▶';
+  txt.textContent = '播放「做我老婆好不好」';
+}
+
+function startHeartsAnimation() {
+  const canvas = document.getElementById('heartsCanvas');
+  const ctx2d = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const hearts = [];
+  const symbols = ['❤','💕','💗','💖','✨','🌸','💜','💛'];
+
+  for (let i = 0; i < 35; i++) {
+    hearts.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height + canvas.height,
+      speed: 0.5 + Math.random() * 1.5,
+      size: 12 + Math.random() * 18,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: 0.01 + Math.random() * 0.02,
+      symbol: symbols[Math.floor(Math.random() * symbols.length)],
+      opacity: 0.3 + Math.random() * 0.5,
+    });
+  }
+
+  function draw() {
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    hearts.forEach(h => {
+      h.y -= h.speed;
+      h.wobble += h.wobbleSpeed;
+      h.x += Math.sin(h.wobble) * 0.8;
+      if (h.y < -40) {
+        h.y = canvas.height + 20;
+        h.x = Math.random() * canvas.width;
+      }
+      ctx2d.globalAlpha = h.opacity;
+      ctx2d.font = `${h.size}px serif`;
+      ctx2d.fillText(h.symbol, h.x, h.y);
+    });
+    ctx2d.globalAlpha = 1;
+    heartsAnim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ══ Toast ═════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// ══ 键盘快捷键 ════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select')) return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === 'r' || e.key === 'R') resetTimer();
+  else if (e.key === '1') { if (!running) switchMode('work'); }
+  else if (e.key === '2') { if (!running) switchMode('short'); }
+  else if (e.key === '3') { if (!running) switchMode('long'); }
+});
+
+// ══ 标签事件 ══════════════════════════════════
+tabs.forEach(t => t.addEventListener('click', () => { if (!running) switchMode(t.dataset.mode); }));
+document.addEventListener('click', () => closeAllMenus());
+
+// ══ 初始化 ════════════════════════════════════
+applyLang();
+render();
+renderTasks();
+updateNotifBtn();
+
+// ══ Service Worker 注册 ══════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+// ══ 在线更新检测 ══════════════════════════════════
+if (typeof UpdateChecker !== 'undefined') {
+  // 延迟 3 秒检查更新，避免影响启动
+  setTimeout(() => UpdateChecker.checkUpdate(), 3000);
+}
+</script>
+</body>
+</html>

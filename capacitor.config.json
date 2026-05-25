@@ -1,0 +1,8 @@
+{
+  "appId": "com.xuye.pomodoro",
+  "appName": "pomodoro-web-app",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
